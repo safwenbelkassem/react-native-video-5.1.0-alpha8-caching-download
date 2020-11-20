@@ -69,6 +69,7 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
 
+import java.lang.reflect.Array;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -134,9 +135,14 @@ class ReactExoplayerView extends FrameLayout implements
     private DownloadTracker downloadTracker;
     private DataSource.Factory dataSourceFactory;
     private List<MediaItem> mediaItems;
+    private List<String> links;
+    private int downloadingRN;
+    private int linksSize;
     private DefaultTrackSelector.Parameters trackSelectorParameters;
     private DebugTextViewHelper debugViewHelper;
     private TrackGroupArray lastSeenTrackGroupArray;
+    float global = 0;
+    float current = 0;
     private boolean startAutoPlay;
     private int startWindow;
     private long startPosition;
@@ -512,16 +518,26 @@ class ReactExoplayerView extends FrameLayout implements
 
     @Override
     public void onDownloadsChanged(Download download) {
+        if(Download.STATE_COMPLETED == download.state || Download.STATE_FAILED == download.state ){
+            downloadingRN++;
+            Log.d(TAG, "Data : Number of Downloaded ITEMS : "+downloadingRN+"/"+linksSize);
+            setDownloadList(links);
+
+        }
 
         eventEmitter.setDownloadState(download.state);
+
     }
 
     @Override
-    public void onProgressChanged(long download) {
+    public void onProgressChanged(float download) {
 
-
-       // Log.d(TAG, "onProgressChanged: "+download);
-      eventEmitter.setDownloadProgress(download);
+        if(download!=0){
+            global +=  download - current ;
+        }
+        current = download;
+        Log.d(TAG, "Data : File number :  "+downloadingRN +",  Over all Progress : "+(global/(linksSize*100)*100));
+        eventEmitter.setDownloadProgress(global/(linksSize*100)*100);
     }
 
 public void Timer(Download download){
@@ -694,7 +710,35 @@ public void Timer(Download download){
         return videoTracks;
     }
 
-    public void setDownload(String link) {
+
+    public void setDownloadListOriginalLength(int size) {
+       this.linksSize = size;
+      //this.downloadingRN = 0;
+      // this.global = 0 ;
+      // this.current = 0;
+
+    }
+    public void setDownloadList(List<String> links) {
+
+            if(links.size()!=0) {
+                if(setDownload(links.get(0))){
+                 downloadingRN++;
+                    links.remove(0);
+                    global +=  100/(linksSize*100)*100 ;
+                    //Log.d(TAG, "Data : File number :  "+downloadingRN +",  Over all Progress : "+(global/(linksSize*100)*100));
+                    if(links.get(0)!=null){
+                        setDownload(links.get(0));
+
+                    }
+
+                }else{
+                    links.remove(0);
+                    this.links = links;
+                }
+
+            }
+    }
+    public boolean setDownload(String link) {
         setUpMedia(Uri.parse(link));
         boolean canDownload = getDownloadUnsupportedStringId() == 0;
         Log.d(TAG, "canDownload: " + canDownload);
@@ -703,9 +747,13 @@ public void Timer(Download download){
         Log.d(TAG, "isdownloaded:  " + isDownloaded);
        // downloadTracker.licenseRenew(mediaItems.get(0));
         if(!isDownloaded){
+
             downloadTracker.addListener(this);
             onDownloadButtonClicked();
+            return false;
        //     downloadTracker.licenseRenew(mediaItems.get(0));
+        }else{
+            return true;
         }
     }
 

@@ -20,8 +20,11 @@ import com.google.android.exoplayer2.upstream.RawResourceDataSource;
 
 import org.json.JSONException;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,9 +32,11 @@ import javax.annotation.Nullable;
 
 public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerView> {
 
+
     private static final String REACT_CLASS = "RCTVideo";
 
     private static final String PROP_DOWNLOAD = "download";
+    private static final String PROP_DOWNLOAD_LIST = "downloadlist";
     private static final String PROP_SRC = "src";
     private static final String PROP_SRC_URI = "uri";
     private static final String PROP_SRC_TYPE = "type";
@@ -226,6 +231,27 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
                  Log.d(TAG, "stopDownload: ");
             }
         
+    }
+
+    @ReactProp(name = PROP_DOWNLOAD_LIST)
+    public void startDownloadList(final ReactExoplayerView videoView, final ReadableArray download) {
+        List<String> list = new ArrayList<>();
+        for (int i = 0; i < download.size(); i++) {
+            String url = download.getString(i);
+            if (url != null) {
+                list.add(url);
+            }
+        }
+        if(list!=null){
+           // Log.d(TAG, "startDownload: ");
+            //List<String> list = Arrays.asList(download);
+            videoView.setDownloadListOriginalLength(list.size());
+            videoView.setDownloadList(list);
+        }else{
+
+            Log.d(TAG, "stopDownload: ");
+        }
+
     }
 
     @ReactProp(name = PROP_REPEAT, defaultBoolean = false)

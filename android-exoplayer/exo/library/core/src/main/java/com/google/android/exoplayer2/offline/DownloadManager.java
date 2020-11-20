@@ -111,7 +111,7 @@ public final class DownloadManager {
 
 
 
-    default void onProgressChanged(long bytesDownloaded ) {}
+    default void onProgressChanged(float bytesDownloaded ) {}
 
 
     /**
@@ -1030,14 +1030,13 @@ public final class DownloadManager {
 
       // We can start a download task.
       download = putDownloadWithState(download, STATE_DOWNLOADING);
-
       Downloader downloader = downloaderFactory.createDownloader(download.request);
       try {
         downloader.download(new Downloader.ProgressListener() {
           @Override
           public void onProgress(long contentLength, long bytesDownloaded, float percentDownloaded) {
             for (Listener listener : listeners) {
-              listener.onProgressChanged(bytesDownloaded);
+              listener.onProgressChanged(percentDownloaded);
             }
             //  android.util.Log.d(TAG, "onProgress: BYTES "+bytesDownloaded);
           }
@@ -1372,8 +1371,8 @@ public final class DownloadManager {
               downloader.download(new Downloader.ProgressListener() {
                 @Override
                 public void onProgress(long contentLength, long bytesDownloaded, float percentDownloaded) {
-                  android.util.Log.d(TAG, "Downloaded per:"+ bytesDownloaded);
-                  android.util.Log.d(TAG, "Downloaded per:"+ String.valueOf(percentDownloaded));
+                //  android.util.Log.d(TAG, "Downloaded per:"+ bytesDownloaded);
+                 // android.util.Log.d(TAG, "Downloaded per:"+ String.valueOf(percentDownloaded));
                 }
               });
               downloader.download(/* progressListener= */ this);

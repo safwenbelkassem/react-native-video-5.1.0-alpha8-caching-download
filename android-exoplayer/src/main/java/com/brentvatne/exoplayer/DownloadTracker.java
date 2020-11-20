@@ -82,7 +82,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
     /** Called when the tracked downloads changed. */
     void onDownloadsChanged(Download state);
 
-    void  onProgressChanged(long bytes);
+    void  onProgressChanged(float bytes);
 
   }
 
@@ -387,7 +387,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
   private class DownloadManagerListener implements DownloadManager.Listener {
 
     @Override
-    public void onProgressChanged(long bytesDownloaded) {
+    public void onProgressChanged(float bytesDownloaded) {
       for (Listener listener : listeners) {
         listener.onProgressChanged(bytesDownloaded);
       }
@@ -402,6 +402,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
 
       downloads.put(download.request.uri, download);
       //  byte[] potato = new byte[]
+
       // downloads.replace(download.request.uri,download.request.keySetId =keySetId ,)
       for (Listener listener : listeners) {
         listener.onDownloadsChanged(download);

@@ -212,7 +212,7 @@ class VideoEventEmitter {
         event.putInt(EVENT_PROP_DOWNLOAD_STATE, state);
         receiveEvent(EVENT_DOWNLOAD_STATE, event);
     }
-    void setDownloadProgress(long state) {
+    void setDownloadProgress(float state) {
         WritableMap event = Arguments.createMap();
         event.putDouble(EVENT_PROP_DOWNLOAD_PROGRESS, state);
         receiveEvent(EVENT_DOWNLOAD_PROGRESS, event);

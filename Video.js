@@ -72,6 +72,13 @@ export default class Video extends Component {
       this.setNativeProps({ download: link });
     }
   };
+
+  downloadlist = (link) => {
+    if (Platform.OS === 'android') {
+      this.setNativeProps({ downloadlist: link });
+    }
+  };
+
   presentFullscreenPlayer = () => {
     this.setNativeProps({ fullscreen: true });
   };
