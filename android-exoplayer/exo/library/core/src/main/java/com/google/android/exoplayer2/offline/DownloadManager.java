@@ -15,6 +15,7 @@
  */
 package com.google.android.exoplayer2.offline;
 
+import static android.content.Context.MODE_PRIVATE;
 import static com.google.android.exoplayer2.offline.Download.FAILURE_REASON_NONE;
 import static com.google.android.exoplayer2.offline.Download.FAILURE_REASON_UNKNOWN;
 import static com.google.android.exoplayer2.offline.Download.STATE_COMPLETED;
@@ -28,6 +29,7 @@ import static com.google.android.exoplayer2.offline.Download.STOP_REASON_NONE;
 import static java.lang.Math.min;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -184,6 +186,8 @@ public final class DownloadManager {
   private final RequirementsWatcher.Listener requirementsListener;
   private final CopyOnWriteArraySet<Listener> listeners;
 
+  private float global;
+  private float current;
   private int pendingMessages;
   private int activeTaskCount;
   private boolean initialized;
@@ -194,7 +198,8 @@ public final class DownloadManager {
   private boolean waitingForRequirements;
   private List<Download> downloads;
   private RequirementsWatcher requirementsWatcher;
-
+  private int globalDownloadsize;
+  private float globalDownloadprogress;
   /**
    * Constructs a {@link DownloadManager}.
    *
@@ -253,18 +258,17 @@ public final class DownloadManager {
           Context context, WritableDownloadIndex downloadIndex, DownloaderFactory downloaderFactory) {
     this.context = context.getApplicationContext();
     this.downloadIndex = downloadIndex;
-
     maxParallelDownloads = DEFAULT_MAX_PARALLEL_DOWNLOADS;
     minRetryCount = DEFAULT_MIN_RETRY_COUNT;
     downloadsPaused = true;
     downloads = Collections.emptyList();
-  listeners = new CopyOnWriteArraySet<>();
-
+    listeners = new CopyOnWriteArraySet<>();
     @SuppressWarnings("methodref.receiver.bound.invalid")
     Handler mainHandler = Util.createHandlerForCurrentOrMainLooper(this::handleMainMessage);
     this.applicationHandler = mainHandler;
     HandlerThread internalThread = new HandlerThread("ExoPlayer:DownloadManager");
     internalThread.start();
+
     internalHandler =
             new InternalHandler(
                     internalThread,
@@ -274,7 +278,9 @@ public final class DownloadManager {
                     maxParallelDownloads,
                     minRetryCount,
                     downloadsPaused,
-                    listeners);
+                    listeners,
+                    context
+                    );
 
     @SuppressWarnings("methodref.receiver.bound.invalid")
     RequirementsWatcher.Listener requirementsListener = this::onRequirementsStateChanged;
@@ -287,6 +293,22 @@ public final class DownloadManager {
     internalHandler
             .obtainMessage(MSG_INITIALIZE, notMetRequirements, /* unused */ 0)
             .sendToTarget();
+  }
+
+  public void setGlobalDownloadsize(int globalDownloadsize) {
+    this.globalDownloadsize = globalDownloadsize;
+  }
+
+  public int getGlobalDownloadsize() {
+    return globalDownloadsize;
+  }
+
+  public void setGlobalDownloadprogress(float globalDownloadprogress) {
+    this.globalDownloadprogress = globalDownloadprogress;
+  }
+
+  public float getGlobalDownloadprogress() {
+    return globalDownloadprogress;
   }
 
   /**
@@ -713,7 +735,12 @@ public final class DownloadManager {
     private int maxParallelDownloads;
     private int minRetryCount;
     private int activeDownloadTaskCount;
+    private int globalDownloadSize;
     CopyOnWriteArraySet<Listener> listeners;
+    private float global;
+    private float current;
+    private int downloadingRN;
+    private Context context;
 
     public InternalHandler(
             HandlerThread thread,
@@ -723,7 +750,8 @@ public final class DownloadManager {
             int maxParallelDownloads,
             int minRetryCount,
             boolean downloadsPaused,
-            CopyOnWriteArraySet<Listener> listeners
+            CopyOnWriteArraySet<Listener> listeners,
+            Context context
     ) {
       super(thread.getLooper());
       this.thread = thread;
@@ -731,6 +759,8 @@ public final class DownloadManager {
       this.downloadIndex = downloadIndex;
       this.downloaderFactory = downloaderFactory;
       this.mainHandler = mainHandler;
+      this.globalDownloadSize = globalDownloadSize;
+      this.context = context;
       this.maxParallelDownloads = maxParallelDownloads;
       this.minRetryCount = minRetryCount;
       this.downloadsPaused = downloadsPaused;
@@ -1035,10 +1065,20 @@ public final class DownloadManager {
         downloader.download(new Downloader.ProgressListener() {
           @Override
           public void onProgress(long contentLength, long bytesDownloaded, float percentDownloaded) {
+
+            SharedPreferences prefs = context.getSharedPreferences("globaldata", MODE_PRIVATE);
+            int size = prefs.getInt("globalsize", 1); //0 is the default value.
+
             for (Listener listener : listeners) {
-              listener.onProgressChanged(percentDownloaded);
+
+              if(percentDownloaded!=0){
+                global +=  percentDownloaded - current ;
+              }
+
+              current = percentDownloaded;
+              listener.onProgressChanged(global / (size * 100) * 100);
             }
-            //  android.util.Log.d(TAG, "onProgress: BYTES "+bytesDownloaded);
+
           }
         });
       } catch (IOException e) {
@@ -1372,7 +1412,8 @@ public final class DownloadManager {
                 @Override
                 public void onProgress(long contentLength, long bytesDownloaded, float percentDownloaded) {
                 //  android.util.Log.d(TAG, "Downloaded per:"+ bytesDownloaded);
-                 // android.util.Log.d(TAG, "Downloaded per:"+ String.valueOf(percentDownloaded));
+           //       android.util.Log.d(TAG, "Downloaded global:"+ String.valueOf());
+
                 }
               });
               downloader.download(/* progressListener= */ this);

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
@@ -27,6 +28,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.brentvatne.react.R;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -78,6 +80,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
+import static android.content.Context.MODE_PRIVATE;
 import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 
 
@@ -118,7 +121,6 @@ class ReactExoplayerView extends FrameLayout implements
         MetadataOutput {
 
     private static final String TAG = "ReactExoplayerView";
-
     private static final CookieManager DEFAULT_COOKIE_MANAGER;
     private static final int SHOW_PROGRESS = 1;
 
@@ -218,6 +220,10 @@ class ReactExoplayerView extends FrameLayout implements
                 case SHOW_PROGRESS:
                     if (player != null && player.getPlaybackState() == Player.STATE_READY
                             && player.getPlayWhenReady()) {
+                        WritableMap payload = Arguments.createMap();
+                        payload.putDouble("getTotalPlayTimeMs", playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                        themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onPlayedTime", payload);
+                        Log.d(TAG, "handleMessage: getTotalPlayTimeMs "+playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
                         long pos = player.getCurrentPosition();
                         long bufferedDuration = player.getBufferedPercentage() * player.getDuration() / 100;
                         Log.d(TAG, "handleMessage: "+bufferedDuration);
@@ -259,6 +265,7 @@ class ReactExoplayerView extends FrameLayout implements
     public void setId(int id) {
         super.setId(id);
         eventEmitter.setViewId(id);
+
     }
 
     private void createViews() {
@@ -515,30 +522,30 @@ class ReactExoplayerView extends FrameLayout implements
     public void onAudioBecomingNoisy() {
         eventEmitter.audioBecomingNoisy();
     }
-
-    @Override
-    public void onDownloadsChanged(Download download) {
-        if(Download.STATE_COMPLETED == download.state || Download.STATE_FAILED == download.state ){
-            downloadingRN++;
-            Log.d(TAG, "Data : Number of Downloaded ITEMS : "+downloadingRN+"/"+linksSize);
-            setDownloadList(links);
-
-        }
-
-        eventEmitter.setDownloadState(download.state);
-
+                
+@Override
+public void onDownloadsChanged(Download download) {
+    if(Download.STATE_COMPLETED == download.state || Download.STATE_FAILED == download.state ){
+        downloadingRN++;
     }
+    WritableMap payload = Arguments.createMap();
+    payload.putDouble("downloadState",download.state);
+    payload.putDouble("chapterDownloaded",downloadingRN);
+    this.themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onDownload", payload);
+    Log.d(TAG, "downloadState:  " + download.state);
+    Log.d(TAG, "links:  " + links+"downloadingRN"+downloadingRN);
+    eventEmitter.setDownloadState(download.state);
 
-    @Override
-    public void onProgressChanged(float download) {
-
-        if(download!=0){
-            global +=  download - current ;
-        }
-        current = download;
-        Log.d(TAG, "Data : File number :  "+downloadingRN +",  Over all Progress : "+(global/(linksSize*100)*100));
-        eventEmitter.setDownloadProgress(global/(linksSize*100)*100);
-    }
+}
+                
+@Override
+public void onProgressChanged(float download) {
+Log.d(TAG, "Data : File number :  " + downloadingRN + ",  Over all Progress : " + download);
+    WritableMap payload = Arguments.createMap();
+    payload.putDouble("progress",global / (linksSize * 100) * 100);
+    payload.putDouble("chapter",downloadingRN);
+    this.themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onProgress", payload);
+}
 
 public void Timer(Download download){
 
@@ -712,14 +719,14 @@ public void Timer(Download download){
 
 
     public void setDownloadListOriginalLength(int size) {
-       this.linksSize = size;
-      //this.downloadingRN = 0;
-      // this.global = 0 ;
-      // this.current = 0;
+   //     Log.d(TAG, "setDownloadListOriginalLength: ");
+        SharedPreferences.Editor editor = getContext().getSharedPreferences("globaldata", MODE_PRIVATE).edit();
+        editor.putInt("globalsize", size);
+        editor.apply();
+        }
 
-    }
     public void setDownloadList(List<String> links) {
-
+/*
             if(links.size()!=0) {
                 if(setDownload(links.get(0))){
                  downloadingRN++;
@@ -728,7 +735,6 @@ public void Timer(Download download){
                     //Log.d(TAG, "Data : File number :  "+downloadingRN +",  Over all Progress : "+(global/(linksSize*100)*100));
                     if(links.get(0)!=null){
                         setDownload(links.get(0));
-
                     }
 
                 }else{
@@ -737,8 +743,10 @@ public void Timer(Download download){
                 }
 
             }
+            */
+
     }
-    public boolean setDownload(String link) {
+    public void setDownload(String link) {
         setUpMedia(Uri.parse(link));
         boolean canDownload = getDownloadUnsupportedStringId() == 0;
         Log.d(TAG, "canDownload: " + canDownload);
@@ -747,13 +755,10 @@ public void Timer(Download download){
         Log.d(TAG, "isdownloaded:  " + isDownloaded);
        // downloadTracker.licenseRenew(mediaItems.get(0));
         if(!isDownloaded){
-
+            Log.d(TAG, "entering Download: ");
             downloadTracker.addListener(this);
             onDownloadButtonClicked();
-            return false;
        //     downloadTracker.licenseRenew(mediaItems.get(0));
-        }else{
-            return true;
         }
     }
 

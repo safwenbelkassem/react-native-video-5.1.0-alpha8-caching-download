@@ -105,7 +105,6 @@ public class DownloadTracker implements  DownloadHelper.Callback{
   public DownloadTracker(
           Context context,
           HttpDataSource.Factory httpDataSourceFactory,
-
           DownloadManager downloadManager)
   {
     this.context = context.getApplicationContext();
@@ -123,6 +122,8 @@ public class DownloadTracker implements  DownloadHelper.Callback{
     loadDownloads();
   }
 
+
+
   public void addListener(Listener listener) {
     checkNotNull(listener);
     listeners.add(listener);
@@ -137,6 +138,9 @@ public class DownloadTracker implements  DownloadHelper.Callback{
     return download != null && download.state != Download.STATE_FAILED;
   }
 
+  public void setDownloadSize(){
+
+  }
 
 
   public boolean updateKeySetId(MediaItem mediaItem) {
@@ -242,11 +246,15 @@ public class DownloadTracker implements  DownloadHelper.Callback{
     widevineOfflineLicenseRenew.execute();
   }
 
+
+  public void stopAllDownloads(){
+     }
   public void deleteDownload(MediaItem mediaItem) {
     Download download = downloads.get(checkNotNull(mediaItem.playbackProperties).uri);
     DownloadService.sendRemoveDownload(
             context, PlayerDownloadService.class, download.request.id, /* foreground= */ false);
-  }
+   }
+
 
   public void toggleDownload(
           FragmentManager fragmentManager, MediaItem mediaItem, RenderersFactory renderersFactory) {
@@ -258,9 +266,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
               context, PlayerDownloadService.class, download.request.id, /* foreground= */ false);
     } else {
       android.util.Log.d(TAG, "toggleDownload:  null");
-      if (startDownloadDialogHelper != null) {
-        startDownloadDialogHelper.release();
-      }
+
       startDownloadDialogHelper =
               new StartDownloadDialogHelper(
                       fragmentManager,
@@ -441,6 +447,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
       this.fragmentManager = fragmentManager;
       this.downloadHelper = downloadHelper;
       this.mediaItem = mediaItem;
+      android.util.Log.d(TAG, "StartDownloadDialogHelper: preparing");
       downloadHelper.prepare(this);
     }
 
@@ -458,6 +465,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
 
     @Override
     public void onPrepared(@NonNull DownloadHelper helper) {
+      android.util.Log.d(TAG, "onPrepared: ");
       @Nullable Format format = getFirstFormatWithDrmInitData(helper);
       if (format == null) {
         onDownloadPrepared(helper);
@@ -571,7 +579,7 @@ public class DownloadTracker implements  DownloadHelper.Callback{
     private void onOfflineLicenseFetched(DownloadHelper helper, byte[] keySetId) {
       this.keySetId = keySetId;
       //String s = new String(keySetId);
-      //System.out.println("Keyid : "+s);
+      System.out.println("Keyid : "+keySetId);
       onDownloadPrepared(helper);
     }
 

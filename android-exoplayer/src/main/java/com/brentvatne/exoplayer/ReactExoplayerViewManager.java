@@ -36,6 +36,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String REACT_CLASS = "RCTVideo";
 
     private static final String PROP_DOWNLOAD = "download";
+    private static final String PROP_DOWNLOAD_SIZE= "downloadsize";
     private static final String PROP_DOWNLOAD_LIST = "downloadlist";
     private static final String PROP_SRC = "src";
     private static final String PROP_SRC_URI = "uri";
@@ -219,6 +220,10 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     public void setResizeMode(final ReactExoplayerView videoView, final String resizeModeOrdinalString) {
         videoView.setResizeModeModifier(convertToIntDef(resizeModeOrdinalString));
     }
+    @ReactProp(name = PROP_DOWNLOAD_SIZE)
+    public void setDownloadSize(final ReactExoplayerView videoView, final int downloadsize) {
+       videoView.setDownloadListOriginalLength(downloadsize);
+    }
 
     @ReactProp(name = PROP_DOWNLOAD)
     public void startDownload(final ReactExoplayerView videoView, final String download) {
@@ -227,7 +232,6 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
              Log.d(TAG, "startDownload: ");
                 videoView.setDownload(download);
             }else{
-
                  Log.d(TAG, "stopDownload: ");
             }
         
