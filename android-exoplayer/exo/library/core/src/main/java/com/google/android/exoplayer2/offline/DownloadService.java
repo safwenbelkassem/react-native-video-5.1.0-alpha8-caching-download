@@ -583,7 +583,6 @@ public abstract class DownloadService extends Service {
       boolean foregroundAllowed = foregroundNotificationUpdater != null;
       @Nullable Scheduler scheduler = foregroundAllowed ? getScheduler() : null;
       downloadManager = getDownloadManager();
-      downloadManager.setMaxParallelDownloads(1);
       downloadManager.resumeDownloads();
       downloadManagerHelper =
           new DownloadManagerHelper(

@@ -17,7 +17,6 @@ package com.brentvatne.exoplayer;
 
 import android.app.Notification;
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -105,34 +104,24 @@ public class PlayerDownloadService extends DownloadService {
       nextNotificationId = firstNotificationId;
     }
 
-
     @Override
     public void onDownloadChanged(
             DownloadManager downloadManager, Download download, @Nullable Exception finalException) {
-      Notification notification = null;
-      int DownloadedFilesNumber = 0;
+      Notification notification;
       if (download.state == Download.STATE_COMPLETED) {
-        DownloadedFilesNumber++;
-        SharedPreferences prefs = context.getSharedPreferences("globaldata", MODE_PRIVATE);
-        int size = prefs.getInt("globalsize", 1); //0 is the default value.
-        if(DownloadedFilesNumber==size){
-          notification =
-                  notificationHelper.buildDownloadCompletedNotification(
-                          context,
-                          R.drawable.ic_download_done,
-                          /* contentIntent= */ null,
-                          Util.fromUtf8Bytes(download.request.data));
-        }
-
-      } else if (download.state == Download.STATE_FAILED) {
-        DownloadService.sendSetStopReason(context, com.brentvatne.exoplayer.PlayerDownloadService.class,null,Download.STOP_REASON_NONE,false);
         notification =
-                notificationHelper.buildDownloadFailedNotification(
-                        context,
-                        R.drawable.ic_download_done,
-                        /* contentIntent= */ null,
-                        Util.fromUtf8Bytes(download.request.data));
-
+            notificationHelper.buildDownloadCompletedNotification(
+                context,
+                R.drawable.ic_download_done,
+                /* contentIntent= */ null,
+                Util.fromUtf8Bytes(download.request.data));
+      } else if (download.state == Download.STATE_FAILED) {
+        notification =
+            notificationHelper.buildDownloadFailedNotification(
+                context,
+                R.drawable.ic_download_done,
+                /* contentIntent= */ null,
+                Util.fromUtf8Bytes(download.request.data));
       } else {
         return;
       }

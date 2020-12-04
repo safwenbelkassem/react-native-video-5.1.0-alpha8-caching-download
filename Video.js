@@ -73,12 +73,6 @@ export default class Video extends Component {
     }
   };
 
-  downloadsize = (link) => {
-    if (Platform.OS === 'android') {
-      this.setNativeProps({ downloadsize: link });
-    }
-  };
-
   downloadlist = (link) => {
     if (Platform.OS === 'android') {
       this.setNativeProps({ downloadlist: link });

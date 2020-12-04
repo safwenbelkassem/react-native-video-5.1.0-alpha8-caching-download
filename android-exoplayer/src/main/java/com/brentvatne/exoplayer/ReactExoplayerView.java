@@ -27,6 +27,10 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.androidnetworking.AndroidNetworking;
+import com.androidnetworking.common.Priority;
+import com.androidnetworking.error.ANError;
+import com.androidnetworking.interfaces.JSONObjectRequestListener;
 import com.brentvatne.react.R;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.google.android.exoplayer2.C;
@@ -104,6 +108,7 @@ import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.ui.PlayerControlView;
 
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -145,6 +150,7 @@ class ReactExoplayerView extends FrameLayout implements
     private TrackGroupArray lastSeenTrackGroupArray;
     float global = 0;
     float current = 0;
+    int currentchapterId;
     private boolean startAutoPlay;
     private int startWindow;
     private long startPosition;
@@ -220,10 +226,11 @@ class ReactExoplayerView extends FrameLayout implements
                 case SHOW_PROGRESS:
                     if (player != null && player.getPlaybackState() == Player.STATE_READY
                             && player.getPlayWhenReady()) {
-                        WritableMap payload = Arguments.createMap();
-                        payload.putDouble("getTotalPlayTimeMs", playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
-                        themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onPlayedTime", payload);
-                        Log.d(TAG, "handleMessage: getTotalPlayTimeMs "+playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                 //       WritableMap payload = Arguments.createMap();
+                     //   payload.putDouble("getTotalPlayTimeMs", playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                       // themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onPlayedTime", payload);
+                     //   Log.d(TAG, "handleMessage: getTotalPlayTimeMs "+playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                        saveTotalPlayedTime(playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
                         long pos = player.getCurrentPosition();
                         long bufferedDuration = player.getBufferedPercentage() * player.getDuration() / 100;
                         Log.d(TAG, "handleMessage: "+bufferedDuration);
@@ -235,6 +242,21 @@ class ReactExoplayerView extends FrameLayout implements
             }
         }
     };
+
+    private void saveTotalPlayedTime(long totalPlayTimeMs) {
+        Log.d(TAG, "saveTotalPlayedTime: "+totalPlayTimeMs);
+        SharedPreferences.Editor editor = getContext().getSharedPreferences("globaldata", MODE_PRIVATE).edit();
+        editor.putLong("totalPlayTimeMs", totalPlayTimeMs);
+        editor.apply();
+    }
+
+    private double getTotalPlayedTime() {
+        Log.d(TAG, "getTotalPlayedTime: ");
+        //Get Preferenece
+        SharedPreferences myPrefs;
+        myPrefs = themedReactContext.getSharedPreferences("globaldata", MODE_PRIVATE);
+      return myPrefs.getFloat("totalPlayTimeMs", 0);
+    }
 
     public double getPositionInFirstPeriodMsForCurrentWindow(long currentPosition) {
         Timeline.Window window = new Timeline.Window();
@@ -332,7 +354,9 @@ class ReactExoplayerView extends FrameLayout implements
 
     @Override
     public void onHostDestroy() {
+        Log.d(TAG, "onHostDestroy: ");
         stopPlayback();
+        sendPlayedBacktimetoApi();
         downloadTracker.removeListener(this);
     }
 
@@ -469,13 +493,42 @@ class ReactExoplayerView extends FrameLayout implements
         }
     }
 
+
+
     private void pausePlayback() {
         if (player != null) {
             if (player.getPlayWhenReady()) {
+
                 setPlayWhenReady(false);
+                sendPlayedBacktimetoApi();
+
             }
         }
         setKeepScreenOn(false);
+    }
+
+    private void sendPlayedBacktimetoApi() {
+        Log.d(TAG, "sendPlayedBacktimetoApi: "+String.valueOf(getTotalPlayedTime()));
+        AndroidNetworking.post("https://swann.k8s.satoripop.io/api/v1/chapter/"+currentchapterId+"/read")
+
+                .addBodyParameter("time",String.valueOf(getTotalPlayedTime()) )
+                .setTag("sendChapterData")
+                .setPriority(Priority.MEDIUM)
+                .build()
+                .getAsJSONObject(new JSONObjectRequestListener() {
+
+                    @Override
+                    public void onResponse(JSONObject response) {
+
+                        playbackStatsListener= new PlaybackStatsListener(false, null);
+                        saveTotalPlayedTime(playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                        Log.d(TAG, "onResponse: "+playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
+                    }
+                    @Override
+                    public void onError(ANError error) {
+                        // handle error
+                    }
+                });
     }
 
 
@@ -768,7 +821,9 @@ public void Timer(Download download){
 
      */
 
-
+public void setChapterId(int chapterId){
+    this.currentchapterId = chapterId;
+}
 
     public void getAllDownloadsList() throws JSONException {
         downloadTracker = PlayerUtil.getDownloadTracker(/* context= */ themedReactContext);

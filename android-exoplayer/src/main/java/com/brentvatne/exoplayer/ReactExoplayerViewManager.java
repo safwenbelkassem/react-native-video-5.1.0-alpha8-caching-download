@@ -34,8 +34,8 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
 
 
     private static final String REACT_CLASS = "RCTVideo";
-
     private static final String PROP_DOWNLOAD = "download";
+    private static final String PROP_DOWNLOAD_CHAPTER_ID = "chapterId";
     private static final String PROP_DOWNLOAD_SIZE= "downloadsize";
     private static final String PROP_DOWNLOAD_LIST = "downloadlist";
     private static final String PROP_SRC = "src";
@@ -130,6 +130,11 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_GET_ALL_DOWNLOADS)
     public void getAllDownloadsList(final ReactExoplayerView videoView,String data) throws JSONException {
     videoView.getAllDownloadsList();
+    }
+
+    @ReactProp(name = PROP_DOWNLOAD_CHAPTER_ID)
+    public void setCurrentChapterId(final ReactExoplayerView videoView,int chapterId) throws JSONException {
+        videoView.setChapterId(chapterId);
     }
 
 
