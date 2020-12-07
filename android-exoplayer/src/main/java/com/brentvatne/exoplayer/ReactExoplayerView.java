@@ -601,7 +601,7 @@ public void onDownloadsChanged(Download download) {
 public void onProgressChanged(float download) {
 Log.d(TAG, "Data : File number :  " + downloadingRN + ",  Over all Progress : " + download);
     WritableMap payload = Arguments.createMap();
-    payload.putDouble("progress",global / (linksSize * 100) * 100);
+    payload.putDouble("progress",download);
     payload.putDouble("chapter",downloadingRN);
     this.themedReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("onProgress", payload);
 }
