@@ -523,6 +523,7 @@ class ReactExoplayerView extends FrameLayout implements
                         Log.d(TAG, "sentPlayedBacktimetoApi: "+String.valueOf(getTotalPlayedTime()));
                         Log.d(TAG, "onResponse: "+response.toString());
                         playbackStatsListener= new PlaybackStatsListener(true, null);
+                        player.addAnalyticsListener(playbackStatsListener);
                         saveTotalPlayedTime(0);
                     //    Log.d(TAG, "onResponse: "+playbackStatsListener.getPlaybackStats().getTotalPlayTimeMs());
                     }
