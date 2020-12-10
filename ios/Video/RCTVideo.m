@@ -5,6 +5,8 @@
 #import <React/UIView+React.h>
 #include <MediaAccessibility/MediaAccessibility.h>
 #include <AVFoundation/AVFoundation.h>
+#import "RCTEventEmitter.h"
+
 
 static NSString *const statusKeyPath = @"status";
 static NSString *const playbackLikelyToKeepUpKeyPath = @"playbackLikelyToKeepUp";
@@ -13,8 +15,9 @@ static NSString *const readyForDisplayKeyPath = @"readyForDisplay";
 static NSString *const playbackRate = @"rate";
 static NSString *const timedMetadata = @"timedMetadata";
 static NSString *const externalPlaybackActive = @"externalPlaybackActive";
-
 static int const RCTVideoUnset = -1;
+
+static int downloadedTask = 0;
 
 #ifdef DEBUG
     #define DebugLog(...) NSLog(__VA_ARGS__)
@@ -35,7 +38,6 @@ static int const RCTVideoUnset = -1;
   NSURL *_videoURL;
   BOOL _requestingCertificate;
   BOOL _requestingCertificateErrored;
-  
   /* DRM */
   NSDictionary *_drm;
   AVAssetResourceLoadingRequest *_loadingRequest;
@@ -398,8 +400,10 @@ static int const RCTVideoUnset = -1;
 
       //Perform on next run loop, otherwise onVideoLoadStart is nil
       if (self.onVideoLoadStart) {
+          
         id uri = [self->_source objectForKey:@"uri"];
         id type = [self->_source objectForKey:@"type"];
+          
         self.onVideoLoadStart(@{@"src": @{
                                     @"uri": uri ? uri : [NSNull null],
                                     @"type": type ? type : [NSNull null],
@@ -511,26 +515,26 @@ static int const RCTVideoUnset = -1;
   NSMutableDictionary *assetOptions = [[NSMutableDictionary alloc] init];
   
   if (isNetwork) {
-    NSDictionary *headers = [source objectForKey:@"requestHeaders"];
-    if ([headers count] > 0) {
-      [assetOptions setObject:headers forKey:@"AVURLAssetHTTPHeaderFieldsKey"];
-    }
-    NSArray *cookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies];
-    [assetOptions setObject:cookies forKey:AVURLAssetHTTPCookiesKey];
+     NSDictionary *headers = [source objectForKey:@"requestHeaders"];
+     if ([headers count] > 0) {
+       [assetOptions setObject:headers forKey:@"AVURLAssetHTTPHeaderFieldsKey"];
+     }
+     NSArray *cookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies];
+     [assetOptions setObject:cookies forKey:AVURLAssetHTTPCookiesKey];
     
-#if __has_include(<react-native-video/RCTVideoCache.h>)
-    if (shouldCache && (!_textTracks || !_textTracks.count)) {
-      /* The DVURLAsset created by cache doesn't have a tracksWithMediaType property, so trying
-       * to bring in the text track code will crash. I suspect this is because the asset hasn't fully loaded.
-       * Until this is fixed, we need to bypass caching when text tracks are specified.
-       */
-      DebugLog(@"Caching is not supported for uri '%@' because text tracks are not compatible with the cache. Checkout https://github.com/react-native-community/react-native-video/blob/master/docs/caching.md", uri);
-      [self playerItemForSourceUsingCache:uri assetOptions:assetOptions withCallback:handler];
-      return;
-    }
-#endif
+ #if __has_include(<react-native-video/RCTVideoCache.h>)
+     if (shouldCache && (!_textTracks || !_textTracks.count)) {
+       /* The DVURLAsset created by cache doesn't have a tracksWithMediaType property, so trying
+        * to bring in the text track code will crash. I suspect this is because the asset hasn't fully loaded.
+        * Until this is fixed, we need to bypass caching when text tracks are specified.
+        */
+       DebugLog(@"Caching is not supported for uri '%@' because text tracks are not compatible with the cache. Checkout https://github.com/react-native-community/react-native-video/blob/master/docs/caching.md", uri);
+       [self playerItemForSourceUsingCache:uri assetOptions:assetOptions withCallback:handler];
+       return;
+     }
+ #endif
     
-    asset = [AVURLAsset URLAssetWithURL:url options:assetOptions];
+     asset = [AVURLAsset URLAssetWithURL:url options:assetOptions];
   } else if (isAsset) {
     asset = [AVURLAsset URLAssetWithURL:url options:nil];
   } else {
@@ -608,7 +612,6 @@ static int const RCTVideoUnset = -1;
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
-
   if([keyPath isEqualToString:readyForDisplayKeyPath] && [change objectForKey:NSKeyValueChangeNewKey] && self.onReadyForDisplay) {
     self.onReadyForDisplay(@{@"target": self.reactTag});
     return;
@@ -1627,52 +1630,72 @@ static int const RCTVideoUnset = -1;
 
 #pragma mark - Export
 
-- (void)save:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
-  
-  AVAsset *asset = _playerItem.asset;
-  
-  if (asset != nil) {
+- (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+
     
-    AVAssetExportSession *exportSession = [AVAssetExportSession
-                                           exportSessionWithAsset:asset presetName:AVAssetExportPresetHighestQuality];
-    
-    if (exportSession != nil) {
-      NSString *path = nil;
-      NSArray *array = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-      path = [self generatePathInDirectory:[[self cacheDirectoryPath] stringByAppendingPathComponent:@"Videos"]
-                             withExtension:@".mp4"];
-      NSURL *url = [NSURL fileURLWithPath:path];
-      exportSession.outputFileType = AVFileTypeMPEG4;
-      exportSession.outputURL = url;
-      exportSession.videoComposition = _playerItem.videoComposition;
-      exportSession.shouldOptimizeForNetworkUse = true;
-      [exportSession exportAsynchronouslyWithCompletionHandler:^{
-        
-        switch ([exportSession status]) {
-          case AVAssetExportSessionStatusFailed:
-            reject(@"ERROR_COULD_NOT_EXPORT_VIDEO", @"Could not export video", exportSession.error);
-            break;
-          case AVAssetExportSessionStatusCancelled:
-            reject(@"ERROR_EXPORT_SESSION_CANCELLED", @"Export session was cancelled", exportSession.error);
-            break;
-          default:
-            resolve(@{@"uri": url.absoluteString});
-            break;
-        }
-        
-      }];
-      
-    } else {
-      
-      reject(@"ERROR_COULD_NOT_CREATE_EXPORT_SESSION", @"Could not create export session", nil);
-      
+    NSUserDefaults *defaults= [NSUserDefaults standardUserDefaults];
+    if(![[[defaults dictionaryRepresentation] allKeys]containsObject:link]){
+        AVURLAsset *hlsAsset = [AVURLAsset assetWithURL:[NSURL URLWithString:link]];
+        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"myIdentifier"];
+        configuration.discretionary = true;
+        configuration.sessionSendsLaunchEvents = true;
+        configuration.shouldUseExtendedBackgroundIdleMode = true;
+        AVAssetDownloadURLSession *downloadURLSession =    [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
+        AVAssetDownloadTask *downloadTask = [downloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:@"SWANN" assetArtworkData:nil options:nil];
+        [downloadTask resume];
+ 
+    }else{
+        downloadedTask = downloadedTask+1;
     }
+
+  
+}
+
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didLoadTimeRange:(CMTimeRange)timeRange totalTimeRangesLoaded:(NSArray<NSValue *> *)loadedTimeRanges timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
+    float percentComplete = 0.0;
+    for (NSValue *value in loadedTimeRanges) {
+        CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
+         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
+        NSLog(@"percentComplete:%f",percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration));
+        [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
+        [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)assetDownloadTask didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite{
+    NSLog(@"totalBytesExpectedToWrite %lli",totalBytesExpectedToWrite);
+    NSLog(@"totalBytesWritten %lli",totalBytesWritten);
+    NSLog(@"bytesWritten %lli",bytesWritten);
+    NSLog(@"assetDownloadTaskState %li",(long)assetDownloadTask.state);
+
+}
+- (void)attemptRecoveryFromError:(NSError *)error optionIndex:(NSUInteger)recoveryOptionIndex delegate:(id)delegate didRecoverSelector:(SEL)didRecoverSelector contextInfo:(void *)contextInfo{
+}
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask willDownloadToURL:(NSURL *)location  {
+    NSLog(@"willDownloadToURL: %@", location.relativePath);
     
-  } else {
-    
-    reject(@"ERROR_ASSET_NIL", @"Asset is nil", nil);
-    
-  }
+}
+
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didFinishDownloadingToURL:(NSURL *)location  {
+    NSLog(@"didFinishDownloadingToURL: %@",location.relativePath);
+    downloadedTask = downloadedTask+1;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setURL:location.absoluteURL forKey:assetDownloadTask.URLAsset.URL.absoluteString];
+    NSLog(@"downloadedTask %d",downloadedTask);
+    NSLog(@"assetDownloadTaskState %li",(long)assetDownloadTask.state);
+    [_eventDispatcher sendAppEventWithName:@"onDownloadEnd" body: [NSNumber numberWithInt:downloadedTask]];
+
+}
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
+    NSLog(@"didResolveMediaSelection");
+
+}
+
+- (void)download:(NSString *)download  {
+  NSLog(@"hello %@",download);
+  // resolve(@"succes");
+ 
 }
 
 - (void)setLicenseResult:(NSString *)license {

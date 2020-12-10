@@ -67,9 +67,17 @@ export default class Video extends Component {
     }
   };
 
-  download = (link) => {
+  download = async(link) => {
     if (Platform.OS === 'android') {
       this.setNativeProps({ download: link });
+    }else{
+      return await NativeModules.VideoManager.save(link, findNodeHandle(this._root));
+    }
+  };
+
+  downloadsize = (link) => {
+    if (Platform.OS === 'android') {
+      this.setNativeProps({ downloadsize: link });
     }
   };
 
@@ -291,7 +299,7 @@ export default class Video extends Component {
     }
     return NativeModules.UIManager.getViewManagerConfig(viewManagerName);
   };
-
+  
   render() {
     const resizeMode = this.props.resizeMode;
     const source = resolveAssetSource(this.props.source) || {};
