@@ -70,18 +70,33 @@ RCT_EXPORT_VIEW_PROPERTY(onPlaybackResume, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onPlaybackRateChange, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onVideoExternalPlaybackChange, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onGetLicense, RCTDirectEventBlock);
+RCT_REMAP_METHOD(download,
+      download:(NSString *)download
+         reactTag:(nonnull NSNumber *)reactTag)
+{
+
+    // [self.bridge.uiManager prependUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, RCTVideo *> *viewRegistry) {
+        // if (![view isKindOfClass:[RCTVideo class]]) {
+        //     RCTLogError(@"Invalid view returned from registry, expecting RCTVideo, got: %@", view);
+        // } else {
+        //     [view download:link resolve:resolve reject:reject];
+        // }
+    // }];
+};
 RCT_REMAP_METHOD(save,
-        options:(NSDictionary *)options
+        link:(NSString *)link
         reactTag:(nonnull NSNumber *)reactTag
         resolver:(RCTPromiseResolveBlock)resolve
         rejecter:(RCTPromiseRejectBlock)reject)
 {
+          NSLog(@"Downlaod %@",link);
+
     [self.bridge.uiManager prependUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, RCTVideo *> *viewRegistry) {
         RCTVideo *view = viewRegistry[reactTag];
         if (![view isKindOfClass:[RCTVideo class]]) {
             RCTLogError(@"Invalid view returned from registry, expecting RCTVideo, got: %@", view);
         } else {
-            [view save:options resolve:resolve reject:reject];
+            [view save:link resolve:resolve reject:reject];
         }
     }];
 };
