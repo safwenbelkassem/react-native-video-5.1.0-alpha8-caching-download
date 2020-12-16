@@ -66,3 +66,4 @@ typedef NS_ENUM(NSInteger, RCTVideoError) {
 - (BOOL)setLicenseResultError:(NSString * )error;
 
 @end
+
