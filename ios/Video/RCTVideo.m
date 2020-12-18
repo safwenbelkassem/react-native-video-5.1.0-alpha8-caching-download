@@ -5,8 +5,7 @@
 #import <React/UIView+React.h>
 #include <MediaAccessibility/MediaAccessibility.h>
 #include <AVFoundation/AVFoundation.h>
-#import "RCTEventEmitter.h"
-#import "SRDownloadManager.h"
+
 
 static NSString *const statusKeyPath = @"status";
 static NSString *const playbackLikelyToKeepUpKeyPath = @"playbackLikelyToKeepUp";
@@ -43,7 +42,6 @@ static int downloadedTask = 0;
     AVAssetResourceLoadingRequest *_loadingRequest;
     
     /* Required to publish events */
-    RCTEventEmitter *_eventEmitter;
     RCTEventDispatcher *_eventDispatcher;
     BOOL _playbackRateObserverRegistered;
     BOOL _isExternalPlaybackActiveObserverRegistered;
@@ -398,29 +396,23 @@ static int downloadedTask = 0;
             if (@available(iOS 10.0, *)) {
                 [self setAutomaticallyWaitsToMinimizeStalling:_automaticallyWaitsToMinimizeStalling];
             }
-            
+        
             //Perform on next run loop, otherwise onVideoLoadStart is nil
             if (self.onVideoLoadStart) {
-                NSLog(@" onVideoLoadStart source %@",source);
                 id uri = [self->_source objectForKey:@"uri"];
                 id type = [self->_source objectForKey:@"type"];
-//                NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
-//                NSString *documentsDirectory = [paths objectAtIndex:0];
-//                NSDirectoryEnumerator *direnum = [[NSFileManager defaultManager] enumeratorAtPath:documentsDirectory];
-//                NSString *documentsSubpath;
-//                while (documentsSubpath = [direnum nextObject])
-//                {
-//                    NSLog(@"searched file === %@",uri);
-//                    if (![documentsSubpath.lastPathComponent containsString:@"tears-of-steel"]) {
-//                        continue;
-//                    }
-//                    NSLog(@"found %@", documentsSubpath);
-//                    NSLog(@"found %@", documentsSubpath.lastPathComponent);
-//                    uri=documentsSubpath;
-//                }
                 
+                    NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:uri];
+                    if (savedValue) {
+                        NSURL *url = [NSURL URLWithString:savedValue];
+                        NSLog(@" existing file at url %@",url);
+                        AVAsset *asset = [AVURLAsset assetWithURL:url];
+                        NSLog(@" exisPlayableisting file at url %d",asset.isPlayable);
+                        self->_playerItem = [AVPlayerItem playerItemWithAsset:asset];
+                        NSLog(@" existing file at _playerItem %@",self->_playerItem);
+                    }
                 
-                
+
                 self.onVideoLoadStart(@{@"src": @{
                                                 @"uri": uri ? uri : [NSNull null],
                                                 @"type": type ? type : [NSNull null],
@@ -439,8 +431,6 @@ static int downloadedTask = 0;
 }
 
 - (NSURL*) urlFilePath:(NSString*) filepath {
-    NSLog(@"source %@",filepath);
-    
     if ([filepath containsString:@"file://"]) {
         return [NSURL URLWithString:filepath];
     }
@@ -463,6 +453,7 @@ static int downloadedTask = 0;
 
 - (void)playerItemPrepareText:(AVAsset *)asset assetOptions:(NSDictionary * __nullable)assetOptions withCallback:(void(^)(AVPlayerItem *))handler
 {
+
     if (!_textTracks || _textTracks.count==0) {
         handler([AVPlayerItem playerItemWithAsset:asset]);
         return;
@@ -517,12 +508,15 @@ static int downloadedTask = 0;
 
 - (void)playerItemForSource:(NSDictionary *)source withCallback:(void(^)(AVPlayerItem *))handler
 {
+    
     bool isNetwork = [RCTConvert BOOL:[source objectForKey:@"isNetwork"]];
     bool isAsset = [RCTConvert BOOL:[source objectForKey:@"isAsset"]];
     bool shouldCache = [RCTConvert BOOL:[source objectForKey:@"shouldCache"]];
     NSString *uri = [source objectForKey:@"uri"];
     NSString *type = [source objectForKey:@"type"];
     AVURLAsset *asset;
+    
+
     
     if (!uri || [uri isEqualToString:@""]) {
         DebugLog(@"Could not find video URL in source '%@'", source);
@@ -578,6 +572,8 @@ static int downloadedTask = 0;
 #if __has_include(<react-native-video/RCTVideoCache.h>)
 
 - (void)playerItemForSourceUsingCache:(NSString *)uri assetOptions:(NSDictionary *)options withCallback:(void(^)(AVPlayerItem *))handler {
+    NSLog(@" playerItemForSourceUsingCache excuting");
+
     NSURL *url = [NSURL URLWithString:uri];
     [_videoCache getItemForUri:uri withCallback:^(RCTVideoCacheStatus videoCacheStatus, AVAsset * _Nullable cachedAsset) {
         switch (videoCacheStatus) {
@@ -1659,44 +1655,29 @@ static int downloadedTask = 0;
         configuration.sessionSendsLaunchEvents = true;
         configuration.shouldUseExtendedBackgroundIdleMode = true;
         AVAssetDownloadURLSession *downloadURLSession =    [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
+        
         AVAssetDownloadTask *downloadTask = [downloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:link assetArtworkData:nil options:nil];
         [downloadTask resume];
     }else{
         downloadedTask = downloadedTask+1;
     }
-
-//    NSLog(@"link === %@",link );
-//    [[SRDownloadManager sharedManager] downloadURL:[NSURL URLWithString:link] destPath:nil state:^(SRDownloadState state){
-//            NSLog(@"Download State %d",state);
-//        } progress:^(NSInteger receivedSize, NSInteger expectedSize, CGFloat progress) {
-//            NSLog(@"Download Progress %f",progress);
-//        } completion:^(BOOL success, NSString *filePath, NSError *error) {
-//            NSLog(@"Download %d",success);
-//            NSLog(@"Download %@",error);
-//        }];
 }
+
 
 - (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didLoadTimeRange:(CMTimeRange)timeRange totalTimeRangesLoaded:(NSArray<NSValue *> *)loadedTimeRanges timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
     float percentComplete = 0.0;
-    float totpercentComplete= 100/3 *downloadedTask;;
-   
     for (NSValue *value in loadedTimeRanges) {
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        totpercentComplete += percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration);
-//        NSLog(@"percentComplete:%f",fmod(percentComplete, 5));
-//        if (fmod(percentComplete, 5) ==0 || percentComplete < 5) {
-            [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: totpercentComplete]];
-            
-//        }
-        [_eventDispatcher sendDeviceEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+        [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
+        [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
     }
 }
 
-- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask willDownloadToURL:(NSURL *)location  {
-    NSLog(@"willDownloadToURL: %@", location.relativePath);
-    
-}
+//- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask willDownloadToURL:(NSURL *)location  {
+//    NSLog(@"willDownloadToURL: %@", location);
+//}
+
 
 - (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didFinishDownloadingToURL:(NSURL *)location  {
     NSLog(@"didFinishDownloadingToURL: %@",location.relativePath);
@@ -1706,17 +1687,20 @@ static int downloadedTask = 0;
     NSLog(@"downloadedTask %d",downloadedTask);
     NSLog(@"assetDownloadTaskState %li",(long)assetDownloadTask.state);
     [_eventDispatcher sendAppEventWithName:@"onDownloadEnd" body: [NSNumber numberWithInt:downloadedTask]];
-    
+ 
+    NSString *valueToSave = location.relativePath;
+    [[NSUserDefaults standardUserDefaults] setObject:valueToSave forKey:assetDownloadTask.URLAsset.URL.absoluteString];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
-- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
-    NSLog(@"didResolveMediaSelection");
-    
-}
+//- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
+//    NSLog(@"didResolveMediaSelection");
+//
+//}
 
-- (void)download:(NSString *)download  {
-    NSLog(@"hello %@",download);
-    // resolve(@"succes");
-    }
+//- (void)download:(NSString *)download  {
+//    NSLog(@"hello %@",download);
+//    // resolve(@"succes");
+//}
 
 - (void)setLicenseResult:(NSString *)license {
     NSData *respondData = [self base64DataFromBase64String:license];
