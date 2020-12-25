@@ -15,9 +15,16 @@ static NSString *const playbackRate = @"rate";
 static NSString *const timedMetadata = @"timedMetadata";
 static NSString *const externalPlaybackActive = @"externalPlaybackActive";
 static int const RCTVideoUnset = -1;
-
+/// mediaSelectionGroup key
+static NSString * const MediaSelectionGroupKey = @"MediaSelectionGroupKey";
+/// AVMediaSelectionOption key
+static NSString * const MediaSelectionOptionKey = @"MediaSelectionOptionKey";
 static int downloadedTask = 0;
-
+static NSMutableDictionary<AVAssetDownloadTask *, AVMediaSelection *> *mediaSelectionMap;
+AVAssetDownloadURLSession *assetDownloadURLSession;
+NSURLSessionConfiguration *configuration;
+static NSMutableArray<NSString *> *allLinks;
+AVAssetDownloadTask *downloadTask;
 #ifdef DEBUG
 #define DebugLog(...) NSLog(__VA_ARGS__)
 #else
@@ -357,6 +364,7 @@ static int downloadedTask = 0;
 
 - (void)setSrc:(NSDictionary *)source
 {
+    
     _source = source;
     [self removePlayerLayer];
     [self removePlayerTimeObserver];
@@ -396,23 +404,11 @@ static int downloadedTask = 0;
             if (@available(iOS 10.0, *)) {
                 [self setAutomaticallyWaitsToMinimizeStalling:_automaticallyWaitsToMinimizeStalling];
             }
-        
+            
             //Perform on next run loop, otherwise onVideoLoadStart is nil
             if (self.onVideoLoadStart) {
                 id uri = [self->_source objectForKey:@"uri"];
                 id type = [self->_source objectForKey:@"type"];
-                
-                    NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:uri];
-                    if (savedValue) {
-                        NSURL *url = [NSURL URLWithString:savedValue];
-                        NSLog(@" existing file at url %@",url);
-                        AVAsset *asset = [AVURLAsset assetWithURL:url];
-                        NSLog(@" exisPlayableisting file at url %d",asset.isPlayable);
-                        self->_playerItem = [AVPlayerItem playerItemWithAsset:asset];
-                        NSLog(@" existing file at _playerItem %@",self->_playerItem);
-                    }
-                
-
                 self.onVideoLoadStart(@{@"src": @{
                                                 @"uri": uri ? uri : [NSNull null],
                                                 @"type": type ? type : [NSNull null],
@@ -453,7 +449,7 @@ static int downloadedTask = 0;
 
 - (void)playerItemPrepareText:(AVAsset *)asset assetOptions:(NSDictionary * __nullable)assetOptions withCallback:(void(^)(AVPlayerItem *))handler
 {
-
+    
     if (!_textTracks || _textTracks.count==0) {
         handler([AVPlayerItem playerItemWithAsset:asset]);
         return;
@@ -515,8 +511,12 @@ static int downloadedTask = 0;
     NSString *uri = [source objectForKey:@"uri"];
     NSString *type = [source objectForKey:@"type"];
     AVURLAsset *asset;
-    
-
+    //Check if video exist locally
+    NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:uri];
+    if (savedValue) {
+        //Set the local path
+        uri=savedValue;
+    }
     
     if (!uri || [uri isEqualToString:@""]) {
         DebugLog(@"Could not find video URL in source '%@'", source);
@@ -573,7 +573,7 @@ static int downloadedTask = 0;
 
 - (void)playerItemForSourceUsingCache:(NSString *)uri assetOptions:(NSDictionary *)options withCallback:(void(^)(AVPlayerItem *))handler {
     NSLog(@" playerItemForSourceUsingCache excuting");
-
+    
     NSURL *url = [NSURL URLWithString:uri];
     [_videoCache getItemForUri:uri withCallback:^(RCTVideoCacheStatus videoCacheStatus, AVAsset * _Nullable cachedAsset) {
         switch (videoCacheStatus) {
@@ -1645,18 +1645,20 @@ static int downloadedTask = 0;
 }
 
 #pragma mark - Export
-
+//Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+    
     NSUserDefaults *defaults= [NSUserDefaults standardUserDefaults];
     if(![[[defaults dictionaryRepresentation] allKeys]containsObject:link]){
         AVURLAsset *hlsAsset = [AVURLAsset assetWithURL:[NSURL URLWithString:link]];
-        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"myIdentifier"];
+        configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"SWANN"];
         configuration.discretionary = true;
         configuration.sessionSendsLaunchEvents = true;
         configuration.shouldUseExtendedBackgroundIdleMode = true;
-        AVAssetDownloadURLSession *downloadURLSession =    [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
-        
-        AVAssetDownloadTask *downloadTask = [downloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:link assetArtworkData:nil options:nil];
+        //                 configuration.HTTPMaximumConnectionsPerHost = 3;
+        //                 configuration.HTTPShouldUsePipelining = true;
+        assetDownloadURLSession = [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
+        downloadTask = [assetDownloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:link assetArtworkData:nil options:@{AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: @265000}];
         [downloadTask resume];
     }else{
         downloadedTask = downloadedTask+1;
@@ -1664,9 +1666,48 @@ static int downloadedTask = 0;
 }
 
 
+//Get the next media Selection to download
+- (NSDictionary *)nextMediaSelection:(AVURLAsset *)asset{
+    AVAssetCache *assetCache = asset.assetCache;
+    //    if (!assetCache) return nil;
+    NSArray *mediaCharacteristics = @[AVMediaCharacteristicAudible, AVMediaCharacteristicLegible];
+    
+    for (NSString *mediaCharacteristic in mediaCharacteristics) {
+        AVMediaSelectionGroup *mediaSelectionGroup = [asset mediaSelectionGroupForMediaCharacteristic:mediaCharacteristic];
+        if (mediaSelectionGroup) {
+            NSArray *savedOptions = [assetCache mediaSelectionOptionsInMediaSelectionGroup:mediaSelectionGroup];
+            
+            if (savedOptions.count < mediaSelectionGroup.options.count) {
+                for (AVMediaSelectionOption *option in mediaSelectionGroup.options) {
+                    if (![savedOptions containsObject:option]) return @{MediaSelectionGroupKey: mediaSelectionGroup, MediaSelectionOptionKey: option};
+                }
+            }
+        }
+    }
+    return nil;
+}
+
+//the download complete didCompleteWithError
+- (void)URLSession:(NSURLSession *)session task:(AVAssetDownloadTask *)task didCompleteWithError:(NSError *)error{
+    
+    //Check the extra media to download
+    NSDictionary *mediaSelectionPair = [self nextMediaSelection:task.URLAsset];
+    if (mediaSelectionPair.allValues.count) {
+        AVMediaSelection *originalMediaSelection = mediaSelectionMap[task];
+        if (!originalMediaSelection) return;
+        AVMutableMediaSelection *mediaSelection = originalMediaSelection.mutableCopy;
+        [mediaSelection selectMediaOption:mediaSelectionPair[MediaSelectionOptionKey] inMediaSelectionGroup:mediaSelectionPair[MediaSelectionGroupKey]];
+        AVAssetDownloadTask *assetDonwloadTask = [assetDownloadURLSession assetDownloadTaskWithURLAsset:task.URLAsset assetTitle:task.URLAsset.URL.absoluteString assetArtworkData:nil options:@{AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: @2000000, AVAssetDownloadTaskMediaSelectionKey: mediaSelection}];
+        if (!assetDonwloadTask) return;
+        [assetDonwloadTask resume];
+    }
+}
+
+//Return the download progress
 - (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didLoadTimeRange:(CMTimeRange)timeRange totalTimeRangesLoaded:(NSArray<NSValue *> *)loadedTimeRanges timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
     float percentComplete = 0.0;
     for (NSValue *value in loadedTimeRanges) {
+        
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
         [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
@@ -1674,33 +1715,40 @@ static int downloadedTask = 0;
     }
 }
 
-//- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask willDownloadToURL:(NSURL *)location  {
-//    NSLog(@"willDownloadToURL: %@", location);
-//}
-
-
+//The download of asset did finish
 - (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didFinishDownloadingToURL:(NSURL *)location  {
-    NSLog(@"didFinishDownloadingToURL: %@",location.relativePath);
+    
+    //Increment the downloaded task
     downloadedTask = downloadedTask+1;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setURL:location.absoluteURL forKey:assetDownloadTask.URLAsset.URL.absoluteString];
-    NSLog(@"downloadedTask %d",downloadedTask);
-    NSLog(@"assetDownloadTaskState %li",(long)assetDownloadTask.state);
     [_eventDispatcher sendAppEventWithName:@"onDownloadEnd" body: [NSNumber numberWithInt:downloadedTask]];
- 
-    NSString *valueToSave = location.relativePath;
+    
+    //Save the location of each file with the link key
+    NSString *valueToSave = location.absoluteString;
     [[NSUserDefaults standardUserDefaults] setObject:valueToSave forKey:assetDownloadTask.URLAsset.URL.absoluteString];
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
-//- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
-//    NSLog(@"didResolveMediaSelection");
+
+//- (void)URLSession:(NSURLSession *)session
+// assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask
+// willDownloadToURL:(NSURL *)location{
+//    NSLog(@"willDownloadToURL to %@",location);
+//    NSString *valueToSave = @"InProgress";
+//    [[NSUserDefaults standardUserDefaults] setObject:valueToSave forKey:@"failed"];
+//    [[NSUserDefaults standardUserDefaults] synchronize];
 //
 //}
+//Get the resolved media selection
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
+    mediaSelectionMap[assetDownloadTask]=resolvedMediaSelection;
+}
 
-//- (void)download:(NSString *)download  {
-//    NSLog(@"hello %@",download);
-//    // resolve(@"succes");
-//}
+
+
+
+- (void)download:(NSString *)download  {
+}
 
 - (void)setLicenseResult:(NSString *)license {
     NSData *respondData = [self base64DataFromBase64String:license];
