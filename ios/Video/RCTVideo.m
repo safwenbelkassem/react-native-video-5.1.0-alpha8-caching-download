@@ -15,9 +15,7 @@ static NSString *const playbackRate = @"rate";
 static NSString *const timedMetadata = @"timedMetadata";
 static NSString *const externalPlaybackActive = @"externalPlaybackActive";
 static int const RCTVideoUnset = -1;
-/// mediaSelectionGroup key
 static NSString * const MediaSelectionGroupKey = @"MediaSelectionGroupKey";
-/// AVMediaSelectionOption key
 static NSString * const MediaSelectionOptionKey = @"MediaSelectionOptionKey";
 static int downloadedTask = 0;
 static NSMutableDictionary<AVAssetDownloadTask *, AVMediaSelection *> *mediaSelectionMap;
@@ -35,6 +33,8 @@ AVAssetDownloadTask *downloadTask;
 {
     AVPlayer *_player;
     AVPlayerItem *_playerItem;
+    AVPlayerItemAccessLog *_playerItemAccess;
+
     NSDictionary *_source;
     BOOL _playerItemObserversSet;
     BOOL _playerBufferEmpty;
@@ -272,7 +272,9 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)sendProgressUpdate
 {
+   
     AVPlayerItem *video = [_player currentItem];
+   
     if (video == nil || video.status != AVPlayerItemStatusReadyToPlay) {
         return;
     }
@@ -284,9 +286,12 @@ AVAssetDownloadTask *downloadTask;
     
     CMTime currentTime = _player.currentTime;
     NSDate *currentPlaybackTime = _player.currentItem.currentDate;
+//    NSDate *currentPlaybackTime = _playerItem.currentDate.dur
+
     const Float64 duration = CMTimeGetSeconds(playerDuration);
     const Float64 currentTimeSecs = CMTimeGetSeconds(currentTime);
     
+//    NSLog(@"  video.currentTime %f" , durationWatched);
     [[NSNotificationCenter defaultCenter] postNotificationName:@"RCTVideo_progress" object:nil userInfo:@{@"progress": [NSNumber numberWithDouble: currentTimeSecs / duration]}];
     
     if( currentTimeSecs >= 0 && self.onVideoProgress) {
@@ -299,7 +304,9 @@ AVAssetDownloadTask *downloadTask;
             @"target": self.reactTag,
             @"seekableDuration": [self calculateSeekableDuration],
                              });
+
     }
+
 }
 
 /*!
@@ -323,7 +330,9 @@ AVAssetDownloadTask *downloadTask;
         if (playableDuration > 0) {
             return [NSNumber numberWithFloat:playableDuration];
         }
+
     }
+    
     return [NSNumber numberWithInteger:0];
 }
 
@@ -504,7 +513,6 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)playerItemForSource:(NSDictionary *)source withCallback:(void(^)(AVPlayerItem *))handler
 {
-    
     bool isNetwork = [RCTConvert BOOL:[source objectForKey:@"isNetwork"]];
     bool isAsset = [RCTConvert BOOL:[source objectForKey:@"isAsset"]];
     bool shouldCache = [RCTConvert BOOL:[source objectForKey:@"shouldCache"]];
@@ -513,7 +521,8 @@ AVAssetDownloadTask *downloadTask;
     AVURLAsset *asset;
     //Check if video exist locally
     NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:uri];
-    if (savedValue) {
+    if (savedValue || [[NSFileManager defaultManager] fileExistsAtPath:savedValue isDirectory:false]) {
+        NSLog(@"savedValue===%@",savedValue);
         //Set the local path
         uri=savedValue;
     }
@@ -981,7 +990,6 @@ AVAssetDownloadTask *downloadTask;
         }
         [_player setRate:_rate];
     }
-    
     _paused = paused;
 }
 
@@ -1654,13 +1662,15 @@ AVAssetDownloadTask *downloadTask;
         configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"SWANN"];
         configuration.discretionary = true;
         configuration.sessionSendsLaunchEvents = true;
-        configuration.shouldUseExtendedBackgroundIdleMode = true;
-        //                 configuration.HTTPMaximumConnectionsPerHost = 3;
-        //                 configuration.HTTPShouldUsePipelining = true;
-        assetDownloadURLSession = [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
-        downloadTask = [assetDownloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:link assetArtworkData:nil options:@{AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: @265000}];
-        [downloadTask resume];
+        if (@available(iOS 10.0, *)) {
+            assetDownloadURLSession = [AVAssetDownloadURLSession sessionWithConfiguration:configuration assetDownloadDelegate:self delegateQueue:NSOperationQueue.mainQueue];
+            downloadTask = [assetDownloadURLSession assetDownloadTaskWithURLAsset:hlsAsset assetTitle:link assetArtworkData:nil options:@{AVAssetDownloadTaskMinimumRequiredMediaBitrateKey: @265000}];
+            [downloadTask resume];
+        } else {
+            // Fallback on earlier versions
+        }
     }else{
+        //if chapter already exist
         downloadedTask = downloadedTask+1;
     }
 }
@@ -1668,27 +1678,31 @@ AVAssetDownloadTask *downloadTask;
 
 //Get the next media Selection to download
 - (NSDictionary *)nextMediaSelection:(AVURLAsset *)asset{
-    AVAssetCache *assetCache = asset.assetCache;
-    //    if (!assetCache) return nil;
-    NSArray *mediaCharacteristics = @[AVMediaCharacteristicAudible, AVMediaCharacteristicLegible];
-    
-    for (NSString *mediaCharacteristic in mediaCharacteristics) {
-        AVMediaSelectionGroup *mediaSelectionGroup = [asset mediaSelectionGroupForMediaCharacteristic:mediaCharacteristic];
-        if (mediaSelectionGroup) {
-            NSArray *savedOptions = [assetCache mediaSelectionOptionsInMediaSelectionGroup:mediaSelectionGroup];
-            
-            if (savedOptions.count < mediaSelectionGroup.options.count) {
-                for (AVMediaSelectionOption *option in mediaSelectionGroup.options) {
-                    if (![savedOptions containsObject:option]) return @{MediaSelectionGroupKey: mediaSelectionGroup, MediaSelectionOptionKey: option};
+    if (@available(iOS 10.0, *)) {
+        AVAssetCache *assetCache = asset.assetCache;
+        //    if (!assetCache) return nil;
+        NSArray *mediaCharacteristics = @[AVMediaCharacteristicAudible, AVMediaCharacteristicLegible];
+        
+        for (NSString *mediaCharacteristic in mediaCharacteristics) {
+            AVMediaSelectionGroup *mediaSelectionGroup = [asset mediaSelectionGroupForMediaCharacteristic:mediaCharacteristic];
+            if (mediaSelectionGroup) {
+                NSArray *savedOptions = [assetCache mediaSelectionOptionsInMediaSelectionGroup:mediaSelectionGroup];
+                
+                if (savedOptions.count < mediaSelectionGroup.options.count) {
+                    for (AVMediaSelectionOption *option in mediaSelectionGroup.options) {
+                        if (![savedOptions containsObject:option]) return @{MediaSelectionGroupKey: mediaSelectionGroup, MediaSelectionOptionKey: option};
+                    }
                 }
             }
         }
+    } else {
+        // Fallback on earlier versions
     }
     return nil;
 }
 
 //the download complete didCompleteWithError
-- (void)URLSession:(NSURLSession *)session task:(AVAssetDownloadTask *)task didCompleteWithError:(NSError *)error{
+- (void)URLSession:(NSURLSession *)session task:(AVAssetDownloadTask *)task didCompleteWithError:(NSError *)error API_AVAILABLE(ios(9.0)){
     
     //Check the extra media to download
     NSDictionary *mediaSelectionPair = [self nextMediaSelection:task.URLAsset];
@@ -1704,20 +1718,22 @@ AVAssetDownloadTask *downloadTask;
 }
 
 //Return the download progress
-- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didLoadTimeRange:(CMTimeRange)timeRange totalTimeRangesLoaded:(NSArray<NSValue *> *)loadedTimeRanges timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didLoadTimeRange:(CMTimeRange)timeRange totalTimeRangesLoaded:(NSArray<NSValue *> *)loadedTimeRanges timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad  API_AVAILABLE(ios(9.0)){
+    
     float percentComplete = 0.0;
     for (NSValue *value in loadedTimeRanges) {
-        
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
-        [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 5) {
+            [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
+            [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+        }
+        
     }
 }
 
 //The download of asset did finish
-- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didFinishDownloadingToURL:(NSURL *)location  {
-    
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didFinishDownloadingToURL:(NSURL *)location   API_AVAILABLE(ios(9.0)){
     //Increment the downloaded task
     downloadedTask = downloadedTask+1;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -1740,7 +1756,7 @@ AVAssetDownloadTask *downloadTask;
 //
 //}
 //Get the resolved media selection
-- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection  {
+- (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection   API_AVAILABLE(ios(9.0)){
     mediaSelectionMap[assetDownloadTask]=resolvedMediaSelection;
 }
 
@@ -1749,7 +1765,6 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)download:(NSString *)download  {
 }
-
 - (void)setLicenseResult:(NSString *)license {
     NSData *respondData = [self base64DataFromBase64String:license];
     if (_loadingRequest != nil && respondData != nil) {
