@@ -306,6 +306,9 @@ export default class Video extends Component {
     const shouldCache = !source.__packager_asset;
 
     let uri = source.uri || '';
+    let chapterID = source.chapterID || '';
+    let token = source.token || '';
+
     if (uri && uri.match(/^\//)) {
       uri = `file://${uri}`;
     }
@@ -343,6 +346,8 @@ export default class Video extends Component {
         mainVer: source.mainVer || 0,
         patchVer: source.patchVer || 0,
         requestHeaders: source.headers ? this.stringsOnlyObject(source.headers) : {},
+        chapterID,
+        token,
       },
       onVideoLoadStart: this._onLoadStart,
       onVideoLoad: this._onLoad,
