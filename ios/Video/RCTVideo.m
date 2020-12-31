@@ -23,6 +23,7 @@ AVAssetDownloadURLSession *assetDownloadURLSession;
 NSURLSessionConfiguration *configuration;
 static NSMutableArray<NSString *> *allLinks;
 AVAssetDownloadTask *downloadTask;
+Boolean *sendComplete;
 #ifdef DEBUG
 #define DebugLog(...) NSLog(__VA_ARGS__)
 #else
@@ -91,6 +92,7 @@ AVAssetDownloadTask *downloadTask;
     BOOL _fullscreenPlayerPresented;
     NSString *_filterName;
     BOOL _filterEnabled;
+    NSTimeInterval durationWatchedWhileProgress ;
     UIViewController * _presentingViewController;
 #if __has_include(<react-native-video/RCTVideoCache.h>)
     RCTVideoCache * _videoCache;
@@ -152,6 +154,10 @@ AVAssetDownloadTask *downloadTask;
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(audioRouteChanged:)
                                                      name:AVAudioSessionRouteChangeNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(applicationWillTerminate:)
+                                                     name:UIApplicationWillTerminateNotification
                                                    object:nil];
     }
     
@@ -256,7 +262,11 @@ AVAssetDownloadTask *downloadTask;
         [_playerViewController setPlayer:_player];
     }
 }
-
+- (void)applicationWillTerminate:(NSNotification *)notification
+{
+    NSLog(@"applicationWillTerminate");
+    [self saveDurationWatched];
+}
 #pragma mark - Audio events
 
 - (void)audioRouteChanged:(NSNotification *)notification
@@ -272,7 +282,8 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)sendProgressUpdate
 {
-   
+    
+
     AVPlayerItem *video = [_player currentItem];
    
     if (video == nil || video.status != AVPlayerItemStatusReadyToPlay) {
@@ -286,14 +297,20 @@ AVAssetDownloadTask *downloadTask;
     
     CMTime currentTime = _player.currentTime;
     NSDate *currentPlaybackTime = _player.currentItem.currentDate;
-//    NSDate *currentPlaybackTime = _playerItem.currentDate.dur
+  
 
+//    for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+//        durationWatchedWhileProgress += event.durationWatched ;
+//    }
+//    [[NSUserDefaults standardUserDefaults] setFloat:durationWatchedWhileProgress forKey:@"Watched"];
+
+//    if (_player.currentItem.accessLog.events[0].durationWatched) {
+//        NSLog(@"HERE");
+//    }
     const Float64 duration = CMTimeGetSeconds(playerDuration);
     const Float64 currentTimeSecs = CMTimeGetSeconds(currentTime);
     
-//    NSLog(@"  video.currentTime %f" , durationWatched);
     [[NSNotificationCenter defaultCenter] postNotificationName:@"RCTVideo_progress" object:nil userInfo:@{@"progress": [NSNumber numberWithDouble: currentTimeSecs / duration]}];
-    
     if( currentTimeSecs >= 0 && self.onVideoProgress) {
         self.onVideoProgress(@{
             @"currentTime": [NSNumber numberWithFloat:CMTimeGetSeconds(currentTime)],
@@ -373,7 +390,8 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)setSrc:(NSDictionary *)source
 {
-    
+    [self saveDurationWatched];
+
     _source = source;
     [self removePlayerLayer];
     [self removePlayerTimeObserver];
@@ -428,6 +446,7 @@ AVAssetDownloadTask *downloadTask;
             }
         }];
     });
+    [[NSUserDefaults standardUserDefaults] setFloat:0 forKey:@"durationWatched"];
     _videoLoadStarted = YES;
 }
 
@@ -507,7 +526,6 @@ AVAssetDownloadTask *downloadTask;
     if (validTextTracks.count != _textTracks.count) {
         [self setTextTracks:validTextTracks];
     }
-    
     handler([AVPlayerItem playerItemWithAsset:mixComposition]);
 }
 
@@ -526,7 +544,6 @@ AVAssetDownloadTask *downloadTask;
         //Set the local path
         uri=savedValue;
     }
-    
     if (!uri || [uri isEqualToString:@""]) {
         DebugLog(@"Could not find video URL in source '%@'", source);
         return;
@@ -954,7 +971,9 @@ AVAssetDownloadTask *downloadTask;
 
 - (void)setPaused:(BOOL)paused
 {
+   
     if (paused) {
+        [self saveDurationWatched];
         [_player pause];
         [_player setRate:0.0];
     } else {
@@ -1653,9 +1672,101 @@ AVAssetDownloadTask *downloadTask;
 }
 
 #pragma mark - Export
+//Save the watched duration
+- (void)saveDurationWatched{
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+    NSString *previousDurationWatched = [[NSUserDefaults standardUserDefaults] stringForKey:@"durationWatched"];
+    id chapterID = [self->_source objectForKey:@"chapterID"];
+    float previousDuration = [previousDurationWatched floatValue];
+    NSTimeInterval durationWatched = 0.0;
+        for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+            durationWatched += event.durationWatched ;
+        }
+//    NSLog(@"durationWatched to send ==%f",durationWatched - previousDuration);
+//    NSLog(@"notSendValue == %@",notSendValue );
+    
+    [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
+    
+    for (NSString* key in notSendValue) {
+        if (sendComplete) {
+            [self sendSavedDuration:key WithDuration:notSendValue[key]];
+        }
+       
+    }
+    if (durationWatched && durationWatched != -1) {
+
+        [[NSUserDefaults standardUserDefaults] setFloat:durationWatched-previousDuration forKey:@"Watched"];
+        NSString *savedValue = [[NSNumber numberWithFloat:durationWatched-previousDuration] stringValue];
+        NSString *chapID = [chapterID stringValue];
+        [self sendSavedDuration:chapID WithDuration:savedValue];
+    }
+}
+//Send the watched duration
+- (void)sendSavedDuration:(NSString*)chapterID WithDuration:(NSString*)savedValue{
+    sendComplete = 0;
+    id token = [self->_source objectForKey:@"token"];
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+    NSLog(@"chapterID %@savedValue%@",chapterID ,savedValue);
+
+//    NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:@"Watched"];
+//    NSLog(@"Value to send ==%@",savedValue);
+    if (savedValue != 0) {
+        NSString *urlString = [NSString stringWithFormat:@"https://swann.k8s.satoripop.io/api/v1/chapter/%@/read?time=%@", chapterID, savedValue];
+        NSMutableURLRequest *urlRequest  = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:urlString]];
+        [urlRequest setHTTPMethod:@"POST"];
+        [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
+        NSURLSession *session = [NSURLSession sharedSession];
+        NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:urlRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+            if(httpResponse.statusCode == 201)
+               {
+                   if (notSendValue && notSendValue[chapterID]) {
+                       [notSendValue removeObjectForKey:chapterID ];
+                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                       sendComplete = 1;
+                   }
+                   NSLog(@"Send SUCCESS");
+               }
+               else
+               {
+                   sendComplete = 1;
+                   NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
+                   
+
+                   if ([[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"]) {
+                       notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+                       if ( [notSendValue objectForKey:chapterID] != nil) {
+                           float oldValue =[[notSendValue objectForKey:chapterID] floatValue];
+                           float newValue = [savedValue floatValue] ;
+                           if (oldValue != newValue) {
+//                               [notSendValue removeObjectForKey:chapterID ];
+                               [notSendValue setValue:[NSNumber numberWithFloat:newValue + oldValue] forKey:chapterID];
+                               [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                           }
+                       }else{
+                           float newValue = [savedValue floatValue];
+                           [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID ];
+                           [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                       }
+                   }else{
+                       float newValue = [savedValue floatValue];
+                       [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
+                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                     
+//
+                   }
+                   NSLog(@"notSendValue Error== %@",notSendValue);
+//                   NSLog(@"Error == %@",error);
+               }
+           }];
+        [dataTask resume];
+
+    }
+}
+
 //Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
-    
+    //Launch the download for each link received
     NSUserDefaults *defaults= [NSUserDefaults standardUserDefaults];
     if(![[[defaults dictionaryRepresentation] allKeys]containsObject:link]){
         AVURLAsset *hlsAsset = [AVURLAsset assetWithURL:[NSURL URLWithString:link]];
@@ -1724,7 +1835,7 @@ AVAssetDownloadTask *downloadTask;
     for (NSValue *value in loadedTimeRanges) {
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 5) {
+        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 5 && percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) <100) {
             [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
             [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
         }
@@ -1746,15 +1857,6 @@ AVAssetDownloadTask *downloadTask;
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
-//- (void)URLSession:(NSURLSession *)session
-// assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask
-// willDownloadToURL:(NSURL *)location{
-//    NSLog(@"willDownloadToURL to %@",location);
-//    NSString *valueToSave = @"InProgress";
-//    [[NSUserDefaults standardUserDefaults] setObject:valueToSave forKey:@"failed"];
-//    [[NSUserDefaults standardUserDefaults] synchronize];
-//
-//}
 //Get the resolved media selection
 - (void)URLSession:(NSURLSession *)session assetDownloadTask:(AVAssetDownloadTask *)assetDownloadTask didResolveMediaSelection:(AVMediaSelection *)resolvedMediaSelection   API_AVAILABLE(ios(9.0)){
     mediaSelectionMap[assetDownloadTask]=resolvedMediaSelection;
