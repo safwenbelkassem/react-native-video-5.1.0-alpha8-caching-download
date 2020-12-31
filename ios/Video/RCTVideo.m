@@ -23,7 +23,7 @@ AVAssetDownloadURLSession *assetDownloadURLSession;
 NSURLSessionConfiguration *configuration;
 static NSMutableArray<NSString *> *allLinks;
 AVAssetDownloadTask *downloadTask;
-Boolean *sendComplete;
+BOOL* sendComplete;
 #ifdef DEBUG
 #define DebugLog(...) NSLog(__VA_ARGS__)
 #else
@@ -1682,16 +1682,9 @@ Boolean *sendComplete;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             durationWatched += event.durationWatched ;
         }
-//    NSLog(@"durationWatched to send ==%f",durationWatched - previousDuration);
-//    NSLog(@"notSendValue == %@",notSendValue );
-    
     [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
-    
     for (NSString* key in notSendValue) {
-        if (sendComplete) {
             [self sendSavedDuration:key WithDuration:notSendValue[key]];
-        }
-       
     }
     if (durationWatched && durationWatched != -1) {
 
@@ -1703,13 +1696,11 @@ Boolean *sendComplete;
 }
 //Send the watched duration
 - (void)sendSavedDuration:(NSString*)chapterID WithDuration:(NSString*)savedValue{
-    sendComplete = 0;
+    
     id token = [self->_source objectForKey:@"token"];
     NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
-    NSLog(@"chapterID %@savedValue%@",chapterID ,savedValue);
+    NSLog(@"chapterID == %@savedValue == %@",chapterID ,savedValue);
 
-//    NSString *savedValue = [[NSUserDefaults standardUserDefaults] stringForKey:@"Watched"];
-//    NSLog(@"Value to send ==%@",savedValue);
     if (savedValue != 0) {
         NSString *urlString = [NSString stringWithFormat:@"https://swann.k8s.satoripop.io/api/v1/chapter/%@/read?time=%@", chapterID, savedValue];
         NSMutableURLRequest *urlRequest  = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:urlString]];
@@ -1723,13 +1714,13 @@ Boolean *sendComplete;
                    if (notSendValue && notSendValue[chapterID]) {
                        [notSendValue removeObjectForKey:chapterID ];
                        [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
-                       sendComplete = 1;
+                       
                    }
                    NSLog(@"Send SUCCESS");
                }
                else
                {
-                   sendComplete = 1;
+                   
                    NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
                    
 
@@ -1835,11 +1826,12 @@ Boolean *sendComplete;
     for (NSValue *value in loadedTimeRanges) {
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 5 && percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) <100) {
+        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 4 && percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) <100) {
             [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
             [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+
         }
-        
+
     }
 }
 
