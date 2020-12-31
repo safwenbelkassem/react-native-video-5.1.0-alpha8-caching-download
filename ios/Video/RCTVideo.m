@@ -1743,11 +1743,7 @@ BOOL* sendComplete;
                        float newValue = [savedValue floatValue];
                        [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
                        [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
-                     
-//
                    }
-                   NSLog(@"notSendValue Error== %@",notSendValue);
-//                   NSLog(@"Error == %@",error);
                }
            }];
         [dataTask resume];
