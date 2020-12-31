@@ -24,6 +24,9 @@ NSURLSessionConfiguration *configuration;
 static NSMutableArray<NSString *> *allLinks;
 AVAssetDownloadTask *downloadTask;
 BOOL* sendComplete;
+float totalProgress = 0.0;
+float numberOfTask = 0.0;
+
 #ifdef DEBUG
 #define DebugLog(...) NSLog(__VA_ARGS__)
 #else
@@ -1754,6 +1757,7 @@ BOOL* sendComplete;
 //Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     //Launch the download for each link received
+    numberOfTask +=1;
     NSUserDefaults *defaults= [NSUserDefaults standardUserDefaults];
     if(![[[defaults dictionaryRepresentation] allKeys]containsObject:link]){
         AVURLAsset *hlsAsset = [AVURLAsset assetWithURL:[NSURL URLWithString:link]];
@@ -1820,14 +1824,12 @@ BOOL* sendComplete;
     
     float percentComplete = 0.0;
     for (NSValue *value in loadedTimeRanges) {
+        totalProgress +=CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration);
+        NSLog(@"progress %f",totalProgress/3);
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        if (CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) > 4 && percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration) <100) {
-            [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: percentComplete*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration)]];
-            [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
-
-        }
-
+        [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: totalProgress/numberOfTask]];
+        [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
     }
 }
 
