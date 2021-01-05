@@ -1701,9 +1701,8 @@ float numberOfTask = 0.0;
 - (void)sendSavedDuration:(NSString*)chapterID WithDuration:(NSString*)savedValue{
     
     id token = [self->_source objectForKey:@"token"];
-    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSLog(@"chapterID == %@savedValue == %@",chapterID ,savedValue);
-
     if (savedValue != 0) {
         NSString *urlString = [NSString stringWithFormat:@"https://swann.k8s.satoripop.io/api/v1/chapter/%@/read?time=%@", chapterID, savedValue];
         NSMutableURLRequest *urlRequest  = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:urlString]];
@@ -1716,7 +1715,7 @@ float numberOfTask = 0.0;
                {
                    if (notSendValue && notSendValue[chapterID]) {
                        [notSendValue removeObjectForKey:chapterID ];
-                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
                        
                    }
                    NSLog(@"Send SUCCESS");
@@ -1725,27 +1724,24 @@ float numberOfTask = 0.0;
                {
                    
                    NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
-                   
-
-                   if ([[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"]) {
-                       notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+                   if ([[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"]) {
+                       notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
                        if ( [notSendValue objectForKey:chapterID] != nil) {
                            float oldValue =[[notSendValue objectForKey:chapterID] floatValue];
                            float newValue = [savedValue floatValue] ;
                            if (oldValue != newValue) {
-//                               [notSendValue removeObjectForKey:chapterID ];
                                [notSendValue setValue:[NSNumber numberWithFloat:newValue + oldValue] forKey:chapterID];
-                               [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                               [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
                            }
                        }else{
                            float newValue = [savedValue floatValue];
                            [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID ];
-                           [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                           [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
                        }
                    }else{
                        float newValue = [savedValue floatValue];
                        [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
-                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"notSendValue"];
+                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
                    }
                }
            }];
