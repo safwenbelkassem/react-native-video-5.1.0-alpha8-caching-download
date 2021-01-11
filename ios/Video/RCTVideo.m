@@ -285,7 +285,12 @@ float numberOfTask = 0.0;
 
 - (void)sendProgressUpdate
 {
-    
+
+    double valueNotSent = 0.0;
+        for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+            valueNotSent += event.durationWatched ;
+        }
+    [_eventDispatcher sendAppEventWithName:@"onPlayedTime" body: [NSNumber numberWithInt: (long)valueNotSent]];
 
     AVPlayerItem *video = [_player currentItem];
    
@@ -1677,18 +1682,23 @@ float numberOfTask = 0.0;
 #pragma mark - Export
 //Save the watched duration
 - (void)saveDurationWatched{
-    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSString *previousDurationWatched = [[NSUserDefaults standardUserDefaults] stringForKey:@"durationWatched"];
     id chapterID = [self->_source objectForKey:@"chapterID"];
     float previousDuration = [previousDurationWatched floatValue];
     NSTimeInterval durationWatched = 0.0;
+//    double valueNotSent = 0.0;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             durationWatched += event.durationWatched ;
         }
     [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
     for (NSString* key in notSendValue) {
-            [self sendSavedDuration:key WithDuration:notSendValue[key]];
+//       valueNotSent += (long)notSendValue[key];
+
+
+        [self sendSavedDuration:key WithDuration:notSendValue[key]];
     }
+//    [_eventDispatcher sendAppEventWithName:@"valueNotSent" body: [NSNumber numberWithInt: (long)valueNotSent]];
     if (durationWatched && durationWatched != -1) {
 
         [[NSUserDefaults standardUserDefaults] setFloat:durationWatched-previousDuration forKey:@"Watched"];
