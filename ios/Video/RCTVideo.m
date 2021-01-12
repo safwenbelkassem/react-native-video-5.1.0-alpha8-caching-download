@@ -1693,12 +1693,8 @@ float numberOfTask = 0.0;
         }
     [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
     for (NSString* key in notSendValue) {
-//       valueNotSent += (long)notSendValue[key];
-
-
         [self sendSavedDuration:key WithDuration:notSendValue[key]];
     }
-//    [_eventDispatcher sendAppEventWithName:@"valueNotSent" body: [NSNumber numberWithInt: (long)valueNotSent]];
     if (durationWatched && durationWatched != -1) {
 
         [[NSUserDefaults standardUserDefaults] setFloat:durationWatched-previousDuration forKey:@"Watched"];
