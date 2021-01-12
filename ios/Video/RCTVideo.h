@@ -58,6 +58,7 @@ typedef NS_ENUM(NSInteger, RCTVideoError) {
 - (instancetype)initWithEventDispatcher:(RCTEventDispatcher *)eventDispatcher NS_DESIGNATED_INITIALIZER;
 
 - (AVPlayerViewController*)createPlayerViewController:(AVPlayer*)player withPlayerItem:(AVPlayerItem*)playerItem;
+- (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject;
 
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject;
 - (void)download:(NSString *)link ;

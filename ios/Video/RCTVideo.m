@@ -285,12 +285,13 @@ float numberOfTask = 0.0;
 
 - (void)sendProgressUpdate
 {
-
-    double valueNotSent = 0.0;
+    
+        double valueNotSent = 0.0;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             valueNotSent += event.durationWatched ;
         }
     [_eventDispatcher sendAppEventWithName:@"onPlayedTime" body: [NSNumber numberWithInt: (long)valueNotSent]];
+
 
     AVPlayerItem *video = [_player currentItem];
    
@@ -1682,18 +1683,17 @@ float numberOfTask = 0.0;
 #pragma mark - Export
 //Save the watched duration
 - (void)saveDurationWatched{
-    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
     NSString *previousDurationWatched = [[NSUserDefaults standardUserDefaults] stringForKey:@"durationWatched"];
     id chapterID = [self->_source objectForKey:@"chapterID"];
     float previousDuration = [previousDurationWatched floatValue];
     NSTimeInterval durationWatched = 0.0;
-//    double valueNotSent = 0.0;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             durationWatched += event.durationWatched ;
         }
     [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
     for (NSString* key in notSendValue) {
-        [self sendSavedDuration:key WithDuration:notSendValue[key]];
+            [self sendSavedDuration:key WithDuration:notSendValue[key]];
     }
     if (durationWatched && durationWatched != -1) {
 
@@ -1755,7 +1755,21 @@ float numberOfTask = 0.0;
 
     }
 }
-
+- (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+    NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+        
+        NSError *error = nil;
+        @try {
+            NSString *localFileLocation = [userDefaults valueForKey:assetLink];
+            if (localFileLocation) {
+                [[NSFileManager defaultManager] removeItemAtPath:localFileLocation error:&error];
+                [userDefaults removeObjectForKey:assetLink];
+            }
+        }
+        @catch (NSException *exception) {
+            NSLog(@"An error occured deleting the file: %@\n%@", exception, error.localizedDescription);
+        }
+}
 //Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     //Launch the download for each link received

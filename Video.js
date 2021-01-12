@@ -98,7 +98,11 @@ export default class Video extends Component {
   save = async (options?) => {
     return await NativeModules.VideoManager.save(options, findNodeHandle(this._root));
   }
-
+  deleteHlS = async (options?) => {
+    console.log("delete")
+    return await NativeModules.VideoManager.deleteHlS(options, findNodeHandle(this._root));
+  }
+  
   restoreUserInterfaceForPictureInPictureStopCompleted = (restored) => {
     this.setNativeProps({ restoreUserInterfaceForPIPStopCompletionHandler: restored });
   };
