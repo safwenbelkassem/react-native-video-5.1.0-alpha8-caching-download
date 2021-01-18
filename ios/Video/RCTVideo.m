@@ -267,7 +267,7 @@ float numberOfTask = 0.0;
 }
 - (void)applicationWillTerminate:(NSNotification *)notification
 {
-    NSLog(@"applicationWillTerminate");
+   
     [self saveDurationWatched];
 }
 #pragma mark - Audio events
@@ -290,7 +290,7 @@ float numberOfTask = 0.0;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             valueNotSent += event.durationWatched ;
         }
-    [_eventDispatcher sendAppEventWithName:@"onPlayedTime" body: [NSNumber numberWithInt: (long)valueNotSent]];
+    [_eventDispatcher sendAppEventWithName:@"onPlayedTime" body: [NSNumber numberWithInt: (long)valueNotSent*1000]];
 
 
     AVPlayerItem *video = [_player currentItem];
@@ -1683,10 +1683,13 @@ float numberOfTask = 0.0;
 #pragma mark - Export
 //Save the watched duration
 - (void)saveDurationWatched{
-    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"notSendValue"] mutableCopy];
+    NSLog(@"saveDurationWatched");
+
+    NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSString *previousDurationWatched = [[NSUserDefaults standardUserDefaults] stringForKey:@"durationWatched"];
     id chapterID = [self->_source objectForKey:@"chapterID"];
     float previousDuration = [previousDurationWatched floatValue];
+    NSLog(@"NotSentValue%@",notSendValue);
     NSTimeInterval durationWatched = 0.0;
         for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
             durationWatched += event.durationWatched ;
@@ -1696,7 +1699,6 @@ float numberOfTask = 0.0;
             [self sendSavedDuration:key WithDuration:notSendValue[key]];
     }
     if (durationWatched && durationWatched != -1) {
-
         [[NSUserDefaults standardUserDefaults] setFloat:durationWatched-previousDuration forKey:@"Watched"];
         NSString *savedValue = [[NSNumber numberWithFloat:durationWatched-previousDuration] stringValue];
         NSString *chapID = [chapterID stringValue];
@@ -1705,7 +1707,8 @@ float numberOfTask = 0.0;
 }
 //Send the watched duration
 - (void)sendSavedDuration:(NSString*)chapterID WithDuration:(NSString*)savedValue{
-    
+    NSLog(@"sendSavedDuration");
+
     id token = [self->_source objectForKey:@"token"];
     NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSLog(@"chapterID == %@savedValue == %@",chapterID ,savedValue);
@@ -1757,7 +1760,6 @@ float numberOfTask = 0.0;
 }
 - (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-        
         NSError *error = nil;
         @try {
             NSString *localFileLocation = [userDefaults valueForKey:assetLink];
@@ -1846,6 +1848,7 @@ float numberOfTask = 0.0;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
         [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: totalProgress/numberOfTask]];
         [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
+        NSLog(@"downloadState %ld",(long)assetDownloadTask.state);
     }
 }
 
