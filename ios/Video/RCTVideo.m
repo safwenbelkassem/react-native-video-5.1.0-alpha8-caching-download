@@ -1731,7 +1731,7 @@ float numberOfTask = 0.0;
                }
                else
                {
-                   
+                   NSLog(@"Send FAILED");
                    NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
                    if ([[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"]) {
                        notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
@@ -1775,9 +1775,10 @@ float numberOfTask = 0.0;
 //Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     //Launch the download for each link received
-    numberOfTask +=1;
+    
     NSUserDefaults *defaults= [NSUserDefaults standardUserDefaults];
     if(![[[defaults dictionaryRepresentation] allKeys]containsObject:link]){
+        numberOfTask +=1;
         AVURLAsset *hlsAsset = [AVURLAsset assetWithURL:[NSURL URLWithString:link]];
         configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"SWANN"];
         configuration.discretionary = true;
@@ -1792,6 +1793,7 @@ float numberOfTask = 0.0;
     }else{
         //if chapter already exist
         downloadedTask = downloadedTask+1;
+       
     }
 }
 
@@ -1823,7 +1825,7 @@ float numberOfTask = 0.0;
 
 //the download complete didCompleteWithError
 - (void)URLSession:(NSURLSession *)session task:(AVAssetDownloadTask *)task didCompleteWithError:(NSError *)error API_AVAILABLE(ios(9.0)){
-    
+    NSLog(@"didCompleteWithError");
     //Check the extra media to download
     NSDictionary *mediaSelectionPair = [self nextMediaSelection:task.URLAsset];
     if (mediaSelectionPair.allValues.count) {
@@ -1843,10 +1845,11 @@ float numberOfTask = 0.0;
     float percentComplete = 0.0;
     for (NSValue *value in loadedTimeRanges) {
         totalProgress +=CMTimeGetSeconds(timeRange.duration)*100/CMTimeGetSeconds(timeRangeExpectedToLoad.duration);
-        NSLog(@"progress %f",totalProgress/3);
         CMTimeRange loadedTimeRange = value.CMTimeRangeValue;
         percentComplete += CMTimeGetSeconds(loadedTimeRange.duration);
-        [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: totalProgress/numberOfTask]];
+        if (totalProgress/numberOfTask <101) {
+            [_eventDispatcher sendAppEventWithName:@"onProgress" body: [NSNumber numberWithInt: totalProgress/numberOfTask]];
+        }
         [_eventDispatcher sendAppEventWithName:@"onDownload" body: [NSNumber numberWithInt: (long)assetDownloadTask.state]];
         NSLog(@"downloadState %ld",(long)assetDownloadTask.state);
     }
