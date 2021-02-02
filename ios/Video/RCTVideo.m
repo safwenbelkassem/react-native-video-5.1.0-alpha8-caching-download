@@ -1761,12 +1761,17 @@ float numberOfTask = 0.0;
 - (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
         NSError *error = nil;
+    downloadedTask = 0;
+    numberOfTask = 0;
+    totalProgress = 0;
         @try {
             NSString *localFileLocation = [userDefaults valueForKey:assetLink];
             if (localFileLocation) {
                 [[NSFileManager defaultManager] removeItemAtPath:localFileLocation error:&error];
                 [userDefaults removeObjectForKey:assetLink];
+                
             }
+            
         }
         @catch (NSException *exception) {
             NSLog(@"An error occured deleting the file: %@\n%@", exception, error.localizedDescription);
