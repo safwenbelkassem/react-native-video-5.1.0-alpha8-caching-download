@@ -2001,6 +2001,7 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                             if (spcError != nil) {
                                 [self finishLoadingWithError:spcError];
                                 self->_requestingCertificateErrored = YES;
+                                
                             }
                             if (spcData != nil) {
                                 if(self.onGetLicense) {
