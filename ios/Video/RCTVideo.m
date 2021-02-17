@@ -1751,14 +1751,13 @@ float numberOfTask = 0.0;
                        float newValue = [savedValue floatValue];
                        [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
                        [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                   } 
+                   }
                }
            }];
         [dataTask resume];
 
     }
 }
-
 - (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
         NSError *error = nil;
