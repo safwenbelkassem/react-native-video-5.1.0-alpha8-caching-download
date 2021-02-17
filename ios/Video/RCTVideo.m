@@ -597,7 +597,8 @@ float numberOfTask = 0.0;
     _requestingCertificateErrored = NO;
     // End Reset _loadingRequest
     if (self->_drm != nil) {
-    dispatch_queue_t queue = dispatch_queue_create("com.icapps.fairplay.queue", nil);
+                dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+    // dispatch_queue_t queue = dispatch_queue_create("com.icapps.fairplay.queue", nil);
             [asset.resourceLoader setDelegate:self queue:queue];
     }
     
@@ -1751,14 +1752,13 @@ float numberOfTask = 0.0;
                        float newValue = [savedValue floatValue];
                        [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
                        [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                   } 
+                   }
                }
            }];
         [dataTask resume];
 
     }
 }
-
 - (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
         NSError *error = nil;
@@ -1999,15 +1999,15 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                             NSData *spcData = [loadingRequest streamingContentKeyRequestDataForApp:certificateData contentIdentifier:contentIdData options:nil error:&spcError];
                             // Request CKC to the server
                             NSString *licenseServer = (NSString *)[self->_drm objectForKey:@"licenseServer"];
-                                           if (licenseServer == nil) {
-                    licenseServer = loadingRequest.request.URL.absoluteString;
+                //                            if (licenseServer == nil) {
+                //     licenseServer = loadingRequest.request.URL.absoluteString;
                     
-                }
+                // }
           
                
                 
-                licenseServer = [licenseServer stringByReplacingOccurrencesOfString:@"skd"
-                                                     withString:@"https"];
+                // licenseServer = [licenseServer stringByReplacingOccurrencesOfString:@"skd"
+                //                                      withString:@"https"];
 
                             if (spcError != nil) {
                                 [self finishLoadingWithError:spcError];
@@ -2036,14 +2036,14 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                                     }
                                     //
                                     
-                                    // [request setHTTPBody: spcData];
+                                    [request setHTTPBody: spcData];
                                                         // Create Request HTTP body:
-                    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-                    NSString *spcString = [spcData base64EncodedStringWithOptions:0];
-                    NSString *httpBodyString = [NSString stringWithFormat:@"spc=%@&assetId=%@",
-                                                [spcString stringByAddingPercentEncodingWithAllowedCharacters:
-                                                 [[NSCharacterSet characterSetWithCharactersInString:@"="] invertedSet]], contentId];
-                    [request setHTTPBody:[httpBodyString dataUsingEncoding:NSUTF8StringEncoding]];
+                    // [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+                    // NSString *spcString = [spcData base64EncodedStringWithOptions:0];
+                    // NSString *httpBodyString = [NSString stringWithFormat:@"spc=%@&assetId=%@",
+                    //                             [spcString stringByAddingPercentEncodingWithAllowedCharacters:
+                    //                              [[NSCharacterSet characterSetWithCharactersInString:@"="] invertedSet]], contentId];
+                    // [request setHTTPBody:[httpBodyString dataUsingEncoding:NSUTF8StringEncoding]];
 
                                     NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
                                     NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
@@ -2068,16 +2068,16 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                                                 self->_requestingCertificateErrored = YES;
                                             } else if (data != nil) {
                                                 [dataRequest respondWithData:data];
-                                                                          NSString *dataString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                             NSString *stringStrippedOfCkcTags = [[dataString stringByReplacingOccurrencesOfString:@"<ckc>"
-                                                                                                        withString:@""]
-                                                         stringByReplacingOccurrencesOfString:@"</ckc>"
-                                                                                   withString:@""];
-                             NSData *base64CkcData = [[NSData alloc] initWithBase64EncodedString:stringStrippedOfCkcTags
-                                                                                         options:0];
+                        //                                                   NSString *dataString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                        //      NSString *stringStrippedOfCkcTags = [[dataString stringByReplacingOccurrencesOfString:@"<ckc>"
+                        //                                                                                 withString:@""]
+                        //                                  stringByReplacingOccurrencesOfString:@"</ckc>"
+                        //                                                            withString:@""];
+                        //      NSData *base64CkcData = [[NSData alloc] initWithBase64EncodedString:stringStrippedOfCkcTags
+                        //                                                                  options:0];
 
                           
-                        [dataRequest respondWithData:base64CkcData];
+                        // [dataRequest respondWithData:base64CkcData];
 
                                                 [loadingRequest finishLoading];
                                             } else {
