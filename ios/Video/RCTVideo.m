@@ -37,8 +37,8 @@ float numberOfTask = 0.0;
 {
     AVPlayer *_player;
     AVPlayerItem *_playerItem;
-    AVPlayerItemAccessLog *_playerItemAccess;
-
+    // AVPlayerItemAccessLog *_playerItemAccess;
+    
     NSDictionary *_source;
     BOOL _playerItemObserversSet;
     BOOL _playerBufferEmpty;
@@ -267,7 +267,7 @@ float numberOfTask = 0.0;
 }
 - (void)applicationWillTerminate:(NSNotification *)notification
 {
-   
+    
     [self saveDurationWatched];
 }
 #pragma mark - Audio events
@@ -286,15 +286,15 @@ float numberOfTask = 0.0;
 - (void)sendProgressUpdate
 {
     
-        double valueNotSent = 0.0;
-        for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
-            valueNotSent += event.durationWatched ;
-        }
+    double valueNotSent = 0.0;
+    for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+        valueNotSent += event.durationWatched ;
+    }
     [_eventDispatcher sendAppEventWithName:@"onPlayedTime" body: [NSNumber numberWithInt: (long)valueNotSent*1000]];
-
-
+    
+    
     AVPlayerItem *video = [_player currentItem];
-   
+    
     if (video == nil || video.status != AVPlayerItemStatusReadyToPlay) {
         return;
     }
@@ -306,16 +306,16 @@ float numberOfTask = 0.0;
     
     CMTime currentTime = _player.currentTime;
     NSDate *currentPlaybackTime = _player.currentItem.currentDate;
-  
-
-//    for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
-//        durationWatchedWhileProgress += event.durationWatched ;
-//    }
-//    [[NSUserDefaults standardUserDefaults] setFloat:durationWatchedWhileProgress forKey:@"Watched"];
-
-//    if (_player.currentItem.accessLog.events[0].durationWatched) {
-//        NSLog(@"HERE");
-//    }
+    
+    
+    //    for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+    //        durationWatchedWhileProgress += event.durationWatched ;
+    //    }
+    //    [[NSUserDefaults standardUserDefaults] setFloat:durationWatchedWhileProgress forKey:@"Watched"];
+    
+    //    if (_player.currentItem.accessLog.events[0].durationWatched) {
+    //        NSLog(@"HERE");
+    //    }
     const Float64 duration = CMTimeGetSeconds(playerDuration);
     const Float64 currentTimeSecs = CMTimeGetSeconds(currentTime);
     
@@ -330,9 +330,9 @@ float numberOfTask = 0.0;
             @"target": self.reactTag,
             @"seekableDuration": [self calculateSeekableDuration],
                              });
-
+        
     }
-
+    
 }
 
 /*!
@@ -356,7 +356,7 @@ float numberOfTask = 0.0;
         if (playableDuration > 0) {
             return [NSNumber numberWithFloat:playableDuration];
         }
-
+        
     }
     
     return [NSNumber numberWithInteger:0];
@@ -400,7 +400,7 @@ float numberOfTask = 0.0;
 - (void)setSrc:(NSDictionary *)source
 {
     [self saveDurationWatched];
-
+    
     _source = source;
     [self removePlayerLayer];
     [self removePlayerTimeObserver];
@@ -597,7 +597,8 @@ float numberOfTask = 0.0;
     _requestingCertificateErrored = NO;
     // End Reset _loadingRequest
     if (self->_drm != nil) {
-        dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+        //                dispatch_queue_t queue = dispatch_queue_create("assetQueue", nil);
+        dispatch_queue_t queue = dispatch_queue_create("com.icapps.fairplay.queue", nil);
         [asset.resourceLoader setDelegate:self queue:queue];
     }
     
@@ -980,7 +981,7 @@ float numberOfTask = 0.0;
 
 - (void)setPaused:(BOOL)paused
 {
-   
+    
     if (paused) {
         [self saveDurationWatched];
         [_player pause];
@@ -1684,19 +1685,19 @@ float numberOfTask = 0.0;
 //Save the watched duration
 - (void)saveDurationWatched{
     NSLog(@"saveDurationWatched");
-
+    
     NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSString *previousDurationWatched = [[NSUserDefaults standardUserDefaults] stringForKey:@"durationWatched"];
     id chapterID = [self->_source objectForKey:@"chapterID"];
     float previousDuration = [previousDurationWatched floatValue];
     NSLog(@"NotSentValue%@",notSendValue);
     NSTimeInterval durationWatched = 0.0;
-        for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
-            durationWatched += event.durationWatched ;
-        }
+    for (AVPlayerItemAccessLogEvent *event in _player.currentItem.accessLog.events) {
+        durationWatched += event.durationWatched ;
+    }
     [[NSUserDefaults standardUserDefaults] setFloat:durationWatched forKey:@"durationWatched"];
     for (NSString* key in notSendValue) {
-            [self sendSavedDuration:key WithDuration:notSendValue[key]];
+        [self sendSavedDuration:key WithDuration:notSendValue[key]];
     }
     if (durationWatched && durationWatched != -1) {
         [[NSUserDefaults standardUserDefaults] setFloat:durationWatched-previousDuration forKey:@"Watched"];
@@ -1708,7 +1709,7 @@ float numberOfTask = 0.0;
 //Send the watched duration
 - (void)sendSavedDuration:(NSString*)chapterID WithDuration:(NSString*)savedValue{
     NSLog(@"sendSavedDuration");
-
+    
     id token = [self->_source objectForKey:@"token"];
     NSMutableDictionary *notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
     NSLog(@"chapterID == %@savedValue == %@",chapterID ,savedValue);
@@ -1719,63 +1720,63 @@ float numberOfTask = 0.0;
         [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
         NSURLSession *session = [NSURLSession sharedSession];
         NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:urlRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
             if(httpResponse.statusCode == 201)
-               {
-                   if (notSendValue && notSendValue[chapterID]) {
-                       [notSendValue removeObjectForKey:chapterID ];
-                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                       
-                   }
-                   NSLog(@"Send SUCCESS");
-               }
-               else
-               {
-                   NSLog(@"Send FAILED");
-                   NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
-                   if ([[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"]) {
-                       notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
-                       if ( [notSendValue objectForKey:chapterID] != nil) {
-                           float oldValue =[[notSendValue objectForKey:chapterID] floatValue];
-                           float newValue = [savedValue floatValue] ;
-                           if (oldValue != newValue) {
-                               [notSendValue setValue:[NSNumber numberWithFloat:newValue + oldValue] forKey:chapterID];
-                               [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                           }
-                       }else{
-                           float newValue = [savedValue floatValue];
-                           [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID ];
-                           [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                       }
-                   }else{
-                       float newValue = [savedValue floatValue];
-                       [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
-                       [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
-                   }
-               }
-           }];
+            {
+                if (notSendValue && notSendValue[chapterID]) {
+                    [notSendValue removeObjectForKey:chapterID ];
+                    [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
+                    
+                }
+                NSLog(@"Send SUCCESS");
+            }
+            else
+            {
+                NSLog(@"Send FAILED");
+                NSMutableDictionary *notSendValue = [NSMutableDictionary dictionary];
+                if ([[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"]) {
+                    notSendValue = [[[NSUserDefaults standardUserDefaults] objectForKey:@"valueNotSent"] mutableCopy];
+                    if ( [notSendValue objectForKey:chapterID] != nil) {
+                        float oldValue =[[notSendValue objectForKey:chapterID] floatValue];
+                        float newValue = [savedValue floatValue] ;
+                        if (oldValue != newValue) {
+                            [notSendValue setValue:[NSNumber numberWithFloat:newValue + oldValue] forKey:chapterID];
+                            [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
+                        }
+                    }else{
+                        float newValue = [savedValue floatValue];
+                        [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID ];
+                        [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
+                    }
+                }else{
+                    float newValue = [savedValue floatValue];
+                    [notSendValue setValue:[NSNumber numberWithFloat:newValue] forKey:chapterID];
+                    [[NSUserDefaults standardUserDefaults] setObject:notSendValue forKey:@"valueNotSent"];
+                }
+            }
+        }];
         [dataTask resume];
-
+        
     }
 }
 - (void)deleteHlS:(NSString *)assetLink resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-        NSError *error = nil;
+    NSError *error = nil;
     downloadedTask = 0;
     numberOfTask = 0;
     totalProgress = 0;
-        @try {
-            NSString *localFileLocation = [userDefaults valueForKey:assetLink];
-            if (localFileLocation) {
-                [[NSFileManager defaultManager] removeItemAtPath:localFileLocation error:&error];
-                [userDefaults removeObjectForKey:assetLink];
-                
-            }
+    @try {
+        NSString *localFileLocation = [userDefaults valueForKey:assetLink];
+        if (localFileLocation) {
+            [[NSFileManager defaultManager] removeItemAtPath:localFileLocation error:&error];
+            [userDefaults removeObjectForKey:assetLink];
             
         }
-        @catch (NSException *exception) {
-            NSLog(@"An error occured deleting the file: %@\n%@", exception, error.localizedDescription);
-        }
+        
+    }
+    @catch (NSException *exception) {
+        NSLog(@"An error occured deleting the file: %@\n%@", exception, error.localizedDescription);
+    }
 }
 //Launch the HLS download
 - (void)save:(NSString *)link resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
@@ -1798,7 +1799,7 @@ float numberOfTask = 0.0;
     }else{
         //if chapter already exist
         downloadedTask = downloadedTask+1;
-       
+        
     }
 }
 
@@ -1973,7 +1974,8 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     }
     _loadingRequest = loadingRequest;
     NSURL *url = loadingRequest.request.URL;
-    NSString *contentId = url.host;
+    // NSString *contentId = url.host;
+    NSString *contentId = @"hls.icapps.com";
     if (self->_drm != nil) {
         NSString *contentIdOverride = (NSString *)[self->_drm objectForKey:@"contentId"];
         if (contentIdOverride != nil) {
@@ -1998,9 +2000,20 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                             NSData *spcData = [loadingRequest streamingContentKeyRequestDataForApp:certificateData contentIdentifier:contentIdData options:nil error:&spcError];
                             // Request CKC to the server
                             NSString *licenseServer = (NSString *)[self->_drm objectForKey:@"licenseServer"];
+                            if (licenseServer == nil) {
+                                licenseServer = loadingRequest.request.URL.absoluteString;
+                                
+                            }
+                            
+                            
+                            
+                            licenseServer = [licenseServer stringByReplacingOccurrencesOfString:@"skd"
+                                                                                     withString:@"https"];
+                            
                             if (spcError != nil) {
                                 [self finishLoadingWithError:spcError];
                                 self->_requestingCertificateErrored = YES;
+                                
                             }
                             if (spcData != nil) {
                                 if(self.onGetLicense) {
@@ -2025,6 +2038,14 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                                     //
                                     
                                     [request setHTTPBody: spcData];
+//                                    Create Request HTTP body:
+                                    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+                                    NSString *spcString = [spcData base64EncodedStringWithOptions:0];
+                                    NSString *httpBodyString = [NSString stringWithFormat:@"spc=%@&assetId=%@",
+                                                                [spcString stringByAddingPercentEncodingWithAllowedCharacters:
+                                                                 [[NSCharacterSet characterSetWithCharactersInString:@"="] invertedSet]], contentId];
+                                    [request setHTTPBody:[httpBodyString dataUsingEncoding:NSUTF8StringEncoding]];
+                                    
                                     NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
                                     NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
                                     NSURLSessionDataTask *postDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
@@ -2047,7 +2068,18 @@ didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
                                                 [self finishLoadingWithError:licenseError];
                                                 self->_requestingCertificateErrored = YES;
                                             } else if (data != nil) {
-                                                [dataRequest respondWithData:data];
+                                                // [dataRequest respondWithData:data];
+                                                NSString *dataString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                                                NSString *stringStrippedOfCkcTags = [[dataString stringByReplacingOccurrencesOfString:@"<ckc>"
+                                                                                                                           withString:@""]
+                                                                                     stringByReplacingOccurrencesOfString:@"</ckc>"
+                                                                                     withString:@""];
+                                                NSData *base64CkcData = [[NSData alloc] initWithBase64EncodedString:stringStrippedOfCkcTags
+                                                                                                            options:0];
+                                                
+                                                
+                                                [dataRequest respondWithData:base64CkcData];
+                                                
                                                 [loadingRequest finishLoading];
                                             } else {
                                                 NSError *licenseError = [NSError errorWithDomain: @"RCTVideo"
